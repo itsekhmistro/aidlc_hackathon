@@ -3,8 +3,6 @@
 
 services:
   backend:
-    build:
-      target: development
     volumes:
       - ./backend/app:/app/app
     command:
