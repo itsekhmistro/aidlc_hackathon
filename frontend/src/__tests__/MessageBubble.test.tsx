@@ -149,6 +149,50 @@ describe("MessageBubble", () => {
     expect(screen.queryByRole("button", { name: "Reply" })).not.toBeInTheDocument();
   });
 
+  it("renders image attachments as inline <img> linked to the download URL", () => {
+    const msg = makeMessage({
+      attachments: [
+        {
+          id: "att-1",
+          original_filename: "photo.png",
+          mime_type: "image/png",
+          size_bytes: 2048,
+          comment: null,
+          created_at: "2026-04-20T10:00:00Z",
+        },
+      ],
+    });
+    render(<MessageBubble message={msg} isOwn={false} />);
+    const img = screen.getByRole("img", { name: "photo.png" });
+    expect(img).toBeInTheDocument();
+    expect(img.getAttribute("src")).toBe("/api/attachments/att-1");
+    // Parent anchor points to the same file so click-through opens the full image
+    const link = screen.getByRole("link", { name: /open image photo\.png/i });
+    expect(link.getAttribute("href")).toBe("/api/attachments/att-1");
+    // Filename + size caption is still rendered for accessibility
+    expect(screen.getByText(/photo\.png/)).toBeInTheDocument();
+    expect(screen.getByText(/2\.0KB/)).toBeInTheDocument();
+  });
+
+  it("renders non-image attachments as a text link (no <img>)", () => {
+    const msg = makeMessage({
+      attachments: [
+        {
+          id: "att-2",
+          original_filename: "spec.pdf",
+          mime_type: "application/pdf",
+          size_bytes: 10_240,
+          comment: null,
+          created_at: "2026-04-20T10:00:00Z",
+        },
+      ],
+    });
+    render(<MessageBubble message={msg} isOwn={false} />);
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /spec\.pdf/ });
+    expect(link.getAttribute("href")).toBe("/api/attachments/att-2");
+  });
+
   it("clicking Edit reveals a textarea; editing + Save calls onEdit with new content", async () => {
     const onEdit = vi.fn();
     const msg = makeMessage({ content: "original text" });

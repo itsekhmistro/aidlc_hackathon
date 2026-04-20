@@ -1,7 +1,9 @@
 
 ⏺ Gap audit — Initial-goal-definition.md vs shipped state
 
-  Bottom line: 16 of 16 core requirements shipped (post-Wave-3). Advanced Jabber scope not attempted (explicitly optional in spec §6).
+  Bottom line: **16 of 16 core requirements shipped + NFR load-testing (TASK-16) verified**.
+  Release tagged **`1.0.0`** (annotated, on `greenbase`, 2026-04-21). Advanced Jabber
+  scope not attempted (explicitly optional in spec §6).
 
   Section-by-section coverage
 
@@ -45,11 +47,14 @@
   §2.7 Notifications — ✅ complete
 
   - Unread badges per room/contact — ✅ (TASK-08 + Wave 1 browser-tab title)
-  - Presence latency <2 s — ✅ (WS direct fanout)
+  - Presence latency <2 s — ✅ (WS direct fanout, measured at p99 87 ms in S3)
 
-  §3 NFRs — ✅ within demo scale
+  §3 NFRs — ✅ measured and passing (TASK-16)
 
-  - 300 users / 1000 per room / 10k+ history — architected for; load-testing not performed (out of scope for hackathon)
+  - Full Locust + pytest load-test suite lives under `loadtests/`. Five scenarios
+    (`steady_state_300`, `fanout_1000`, `presence_propagation`, `history_10k_read`,
+    `persistence_restart`) all **PASS** on `bf8acef`. See `loadtests/RESULTS.md` for
+    p50/p95/p99 numbers and the topology deviation note for S2.
   - Persistence, file-size limits, session behavior — ✅
 
   §4 UI — ✅ complete
@@ -70,33 +75,47 @@
   No XMPP server, no federation, no Jabber UI. Spec says "if you manage to implement requirements above quickly" — given TASK-10 landed T-24h before demo, Jabber is out of realistic scope.
 
   ---
-  Spec-complete status (Wave 3, 2026-04-20)
+  Spec-complete status (v1.0.0, 2026-04-21)
 
-  All §2–§5 requirements shipped. §6 (Jabber) remains out of scope per original carve-out.
+  All §2–§5 requirements shipped **and** §3 NFRs independently verified via TASK-16.
+  §6 (Jabber) remains out of scope per original carve-out.
 
-  Wave 3 closed the final polish items:
+  Release trail:
 
-  - **A · Member context menu in `SidebarRight`** — `MemberRowMenu.tsx` exposes
-    Send message, Send friend request (hidden when already friends), Make/Remove admin
-    (owner-only), Ban from room (with confirm). Role-gated identically to the Manage
-    Room → Members tab. Closes §2.3.2.
-  - **B · Sidebar accordion collapse** — `SidebarLeft.tsx` auto-collapses the
-    non-active section when navigating into a room (Contacts collapses) or a DM
-    (Rooms collapses). Collapse state is user-toggleable via the section header
-    caret. Closes §4.1.1.
-  - **C · Contact-row ban action** — already shipped earlier in `ContactRow.tsx`
-    (⋮ menu → "Ban user" with confirm modal). Re-verified 2026-04-20; no work needed.
-
-  Wave 4 (2026-04-20) — TASK-15 personal-room display names:
-  - Backend: `RoomPublic` gains a per-viewer `display_name` field. For personal
-    rooms it resolves to the other member's username; for regular rooms it
-    mirrors `name`. Canonical `Room.name` (`__dm__:<sorted uuids>`) stays
-    immutable as the dedup key.
-  - Frontend: `RoomRow` and `MessageThread` render `display_name` prefixed with
-    `@` for DMs and `#` for regular rooms. `ManageRoomModal` title uses
-    `display_name` too.
-  - Tests: 3 pytest cases (viewer-specific DM resolution, flip between
-    viewers, regular rooms unaffected) + 2 vitest for the thread header.
+  - **Wave 3 (2026-04-20)** — member context menu, sidebar accordion, contact-row ban
+  - **Wave 4 (2026-04-20) — TASK-15** — personal-room display names (`RoomPublic.display_name`;
+    `@<username>` for DMs, `#<name>` for rooms)
+  - **Wave 5 (2026-04-21) — TASK-16** — NFR load-test harness + results
+    - Locust file (`loadtests/locustfile.py`) with scenarios S1-S4; pytest
+      `test_persistence_restart.py` for S5; `backend/scripts/seed_load.py` with
+      all required flags; `RESULTS.md` with real run numbers.
+    - Backend mitigations that landed during the run: `send_to_room` fan-out
+      via `asyncio.gather`, `pool_size=50` / `max_overflow=50`, per-room
+      member cache on `ConnectionManager`, uvicorn `--ws-ping-interval 20
+      --ws-ping-timeout 30`, `client_msg_id` echo-through for latency attribution.
+    - QA follow-up `2cfb619`: `ws.py` helpers routed through
+      `core/db.session_scope()` so unit tests can monkeypatch the WS DB
+      session. 12 new direct tests for auth / upsert / audience paths.
+  - **Release tag `1.0.0`** (annotated, signed author `ivan.tsekhmistro`, on
+    `greenbase`). Preceded by `1.0.0-rc` for staging verification.
+  - **Wave 6 (2026-04-21, post-tag) — post-demo polish** — three items drawn from the
+    deferred list, low-risk and already exercised by the test suite:
+    - Inline image preview: `MessageBubble.tsx` distinguishes `image/*` MIME
+      types and renders `<img>` (max-h 16rem, object-contain) linked to the
+      same `/api/attachments/:id` URL, with a filename/size caption below.
+      Non-image attachments still render as the text-link chip. Covered by
+      two new vitest cases.
+    - Reply round-trip Playwright coverage: `e2e/reply.spec.ts` sends a
+      message, clicks ↩ on its bubble, sends a reply, and asserts the new
+      bubble's `data-testid="reply-preview"` element contains the original
+      message's text — proving both the server's `reply_preview` computation
+      and the client's render.
+    - Surgical `message.new` cache update: `hooks/useMessages.ts` exports
+      `mergeNewMessage`, an idempotent infinite-query splice that prepends
+      the WS-echoed `MessagePublic` into `pages[0]`. `App.tsx` now calls
+      this instead of `invalidateQueries` on `message.new`. Listeners in a
+      1000-member room no longer trigger a per-message refetch; 4 new
+      vitest cases cover prepend / dedupe / unopened-room / empty-pages.
 
   ---
   Demo-script confidence (5-step happy path)
@@ -110,22 +129,26 @@
   Smoke coverage: `e2e/smoke.spec.ts` walks `/chat`, `/rooms`, `/sessions`, `/profile` — no uncaught console errors, exactly one "Current session" pill.
 
   ---
-  Final verification (2026-04-20, post-Wave-4)
+  Final verification (2026-04-21, v1.0.0 + Wave 6)
 
-  - Backend: 187 pytest passing (1 pre-existing skip)
-  - Frontend: 139 vitest passing · 0 TypeScript errors · clean Vite build
-  - E2E: 11 Playwright specs passing (sequential worker)
+  - Backend: 223 pytest passing (1 pre-existing skip) — up from 211 after the
+    TASK-16 QA pass added 12 direct WS-helper tests
+  - Frontend: 149 vitest passing (was 139; Wave 6 added 2 image-preview
+    and 4 `mergeNewMessage` cases) · 0 TypeScript errors · clean Vite build
+  - E2E: 12 Playwright specs passing (was 11; Wave 6 added `reply.spec.ts`)
+  - Load: 5/5 NFR scenarios PASS (see `loadtests/RESULTS.md`)
   - Migration auto-applies on container boot (idempotent); uploads persist across `force-recreate`
   - No open 🔴 blockers
 
-  Branch: `greenbase` · Wave 2 commits: `967bffb` (TASK-10), `087779a` (TASK-11)
+  Branch: `greenbase` · release tag: `1.0.0` (commit `2cfb619`). Wave 6 lives
+  on `greenbase` above the tag.
 
   ---
   Deferred (post-demo)
 
-  - 🟡 Inline image preview for attachments — `MessageBubble.tsx` currently renders every attachment as a text link; distinguish image MIME types and render `<img>` inline (≤20 min)
-  - 🟡 Reply round-trip Playwright coverage — UI and backend wiring verified manually; no e2e asserts the reply-preview bubble renders after round-trip (≤20 min)
+  - ✅ ~~Inline image preview for attachments~~ — shipped Wave 6 (`MessageBubble.tsx`; 2 vitest cases)
+  - ✅ ~~Reply round-trip Playwright coverage~~ — shipped Wave 6 (`e2e/reply.spec.ts`)
+  - ✅ ~~`message.new` cache invalidation is per-room refetch~~ — shipped Wave 6 (`mergeNewMessage` in `hooks/useMessages.ts`; 4 vitest cases)
   - 🟡 `room.invitation_cancelled` WS event — currently admin cancel is local-refetch only; invitee's "pending invitation" banner stays live until they refresh or click-through. Cosmetic at demo scale
-  - 🟡 `message.new` cache invalidation is per-room refetch — replace with surgical cache updates for perf under load
   - 🟡 Sidebar search (filter rooms + contacts by name) — spec §4.1 / `09-frontend-layout.md` acceptance box still open; non-blocking at demo scale (a handful of rooms per user)
   - ⬜ Jabber / XMPP federation (`specs/13-jabber.md`) — advanced scope, not targeted for this hackathon

@@ -1,6 +1,35 @@
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  type InfiniteData,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { api } from "../lib/api";
 import type { MessagePage, MessagePublic } from "../lib/types";
+
+type MessagesCache = InfiniteData<MessagePage>;
+
+// Idempotent surgical insert of a freshly arrived message into the infinite-
+// query cache. Skips work when the cache is empty (room never opened by this
+// client) or when the id already exists (dedupes echo/race between the POST
+// response and the WS broadcast). Returns true if the cache was mutated.
+export function mergeNewMessage(
+  qc: QueryClient,
+  roomId: string,
+  message: MessagePublic,
+): boolean {
+  const key = ["messages", roomId];
+  const existing = qc.getQueryData<MessagesCache>(key);
+  if (!existing || existing.pages.length === 0) return false;
+  const [first, ...rest] = existing.pages;
+  if (first.messages.some((m) => m.id === message.id)) return false;
+  qc.setQueryData<MessagesCache>(key, {
+    ...existing,
+    pages: [{ ...first, messages: [message, ...first.messages] }, ...rest],
+  });
+  return true;
+}
 
 export function useMessages(roomId: string | null) {
   return useInfiniteQuery<MessagePage>({

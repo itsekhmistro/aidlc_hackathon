@@ -114,6 +114,7 @@ export default function MessageBubble({ message, isOwn, onReply, onEdit, onDelet
       >
         {message.reply_preview && (
           <div
+            data-testid="reply-preview"
             className={`mb-1 pl-2 border-l-2 text-xs truncate ${
               isOwn ? "border-blue-200 text-blue-100" : "border-gray-400 text-gray-500"
             }`}
@@ -155,18 +156,46 @@ export default function MessageBubble({ message, isOwn, onReply, onEdit, onDelet
         )}
 
         {message.attachments.length > 0 && mode !== "edit" && (
-          <div className="mt-1 space-y-0.5">
-            {message.attachments.map((att) => (
-              <a
-                key={att.id}
-                href={`/api/attachments/${att.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className={`flex items-center gap-1 text-xs underline ${isOwn ? "text-blue-100 hover:text-white" : "text-blue-600 hover:text-blue-800"}`}
-              >
-                📎 {att.original_filename} ({formatBytes(att.size_bytes)})
-              </a>
-            ))}
+          <div className="mt-1 space-y-1">
+            {message.attachments.map((att) => {
+              const href = `/api/attachments/${att.id}`;
+              const isImage = att.mime_type.startsWith("image/");
+              if (isImage) {
+                return (
+                  <a
+                    key={att.id}
+                    href={href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block"
+                    aria-label={`Open image ${att.original_filename}`}
+                  >
+                    <img
+                      src={href}
+                      alt={att.original_filename}
+                      loading="lazy"
+                      className="max-w-full max-h-64 rounded border border-black/10 object-contain bg-white/5"
+                    />
+                    <span
+                      className={`block mt-0.5 text-xs truncate ${isOwn ? "text-blue-100" : "text-gray-500"}`}
+                    >
+                      {att.original_filename} ({formatBytes(att.size_bytes)})
+                    </span>
+                  </a>
+                );
+              }
+              return (
+                <a
+                  key={att.id}
+                  href={href}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={`flex items-center gap-1 text-xs underline ${isOwn ? "text-blue-100 hover:text-white" : "text-blue-600 hover:text-blue-800"}`}
+                >
+                  📎 {att.original_filename} ({formatBytes(att.size_bytes)})
+                </a>
+              );
+            })}
           </div>
         )}
         {message.edited_at && mode !== "edit" && (

@@ -5,6 +5,7 @@ import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useActivityTracker } from "./hooks/useActivityTracker";
 import { useCurrentUser } from "./hooks/useAuth";
+import { mergeNewMessage } from "./hooks/useMessages";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { setBulkPresence, setPresence } from "./lib/presenceStore";
 import { setUnreadCounts, incrementUnread, clearUnread, useTotalUnread } from "./lib/unreadStore";
@@ -46,7 +47,11 @@ function AppWebSocket() {
       } else if (event.type === "presence.bulk") {
         setBulkPresence(event.presences);
       } else if (event.type === "message.new") {
-        qc.invalidateQueries({ queryKey: ["messages", event.room_id] });
+        // Prepend into the in-memory pages of the infinite query instead of
+        // invalidating — avoids a per-message refetch for every listener in
+        // a 1000-member room. If the room is not currently cached, there is
+        // nothing visible to update.
+        mergeNewMessage(qc, event.room_id, event.message);
       } else if (event.type === "message.edited") {
         qc.invalidateQueries({ queryKey: ["messages", event.message.room_id] });
       } else if (event.type === "message.deleted") {
