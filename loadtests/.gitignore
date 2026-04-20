@@ -1,0 +1,3 @@
+# Ad-hoc run artifacts — never commit.
+tokens*.json
+reports/
