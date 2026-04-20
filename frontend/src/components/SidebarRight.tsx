@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useRoomMembers } from "../hooks/useRoomMembers";
+import { useCurrentUser } from "../hooks/useAuth";
 import { PresenceDot } from "./PresenceDot";
 import { usePresence } from "../lib/presenceStore";
 import type { MemberRole, PresenceStatus, RoomMemberPublic } from "../lib/types";
+import ManageRoomModal from "./ManageRoomModal";
 
 interface Props {
   roomId: string;
@@ -46,6 +49,8 @@ function MemberRow({ member }: { member: RoomMemberPublic }) {
 
 export default function SidebarRight({ roomId }: Props) {
   const { data: members = [], isLoading, isError } = useRoomMembers(roomId);
+  const { data: me } = useCurrentUser();
+  const [manageOpen, setManageOpen] = useState(false);
 
   // Sort: status order, then username.
   const sorted = [...members].sort((a, b) => {
@@ -55,12 +60,24 @@ export default function SidebarRight({ roomId }: Props) {
     return a.username.localeCompare(b.username);
   });
 
+  const myRole = members.find((m) => m.user_id === me?.id)?.role;
+  const canManage = myRole === "owner" || myRole === "admin";
+
   return (
     <aside className="w-56 bg-white border-l border-gray-200 flex flex-col h-full">
-      <div className="px-4 py-3 border-b border-gray-200">
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
         <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
           Members ({members.length})
         </p>
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => setManageOpen(true)}
+            className="text-xs text-blue-600 hover:text-blue-800"
+          >
+            Manage
+          </button>
+        )}
       </div>
       <div className="flex-1 overflow-y-auto py-1">
         {isLoading ? (
@@ -73,6 +90,9 @@ export default function SidebarRight({ roomId }: Props) {
           sorted.map((m) => <MemberRow key={m.user_id} member={m} />)
         )}
       </div>
+      {manageOpen && (
+        <ManageRoomModal roomId={roomId} onClose={() => setManageOpen(false)} />
+      )}
     </aside>
   );
 }

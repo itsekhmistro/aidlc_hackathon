@@ -581,6 +581,82 @@ def test_list_invitations_as_non_admin_returns_403(client: TestClient):
     assert client.get(f"/api/rooms/{room['id']}/invitations").status_code == 403
 
 
+# ─── DELETE /api/rooms/{room_id}/invitations/{invitation_id} ─────────────────
+
+
+def test_cancel_invitation_as_owner_returns_204(client: TestClient):
+    _auth(client, "owner")
+    room = _create_room(client, "cancel-invite-room", "private")
+
+    client.cookies.clear()
+    _auth(client, "cancelinvitee")
+
+    client.cookies.clear()
+    _login(client, "owner")
+    invite = client.post(
+        f"/api/rooms/{room['id']}/invitations", json={"username": "cancelinvitee"}
+    ).json()
+
+    r = client.delete(f"/api/rooms/{room['id']}/invitations/{invite['id']}")
+    assert r.status_code == 204
+
+    # List should now be empty.
+    remaining = client.get(f"/api/rooms/{room['id']}/invitations").json()
+    assert len(remaining) == 0
+
+    # Invitee's own "mine" list should also be empty.
+    client.cookies.clear()
+    _login(client, "cancelinvitee")
+    assert client.get("/api/rooms/invitations/mine").json() == []
+
+
+def test_cancel_invitation_as_non_admin_returns_403(client: TestClient):
+    _auth(client, "owner")
+    room = _create_room(client, "cancel-nonadmin-room", "private")
+
+    client.cookies.clear()
+    _auth(client, "cancelinvitee2")
+
+    client.cookies.clear()
+    _login(client, "owner")
+    invite = client.post(
+        f"/api/rooms/{room['id']}/invitations", json={"username": "cancelinvitee2"}
+    ).json()
+
+    client.cookies.clear()
+    _auth(client, "outsider")
+    r = client.delete(f"/api/rooms/{room['id']}/invitations/{invite['id']}")
+    assert r.status_code == 403
+
+
+def test_cancel_invitation_returns_404_when_missing_or_accepted(client: TestClient):
+    _auth(client, "owner")
+    room = _create_room(client, "cancel-404-room", "private")
+
+    # unknown invitation id
+    r = client.delete(f"/api/rooms/{room['id']}/invitations/{uuid.uuid4()}")
+    assert r.status_code == 404
+
+    # accepted invitations are treated as gone
+    client.cookies.clear()
+    _auth(client, "cancelinvitee3")
+
+    client.cookies.clear()
+    _login(client, "owner")
+    invite = client.post(
+        f"/api/rooms/{room['id']}/invitations", json={"username": "cancelinvitee3"}
+    ).json()
+
+    client.cookies.clear()
+    _login(client, "cancelinvitee3")
+    client.post(f"/api/rooms/invitations/{invite['id']}/accept")
+
+    client.cookies.clear()
+    _login(client, "owner")
+    r = client.delete(f"/api/rooms/{room['id']}/invitations/{invite['id']}")
+    assert r.status_code == 404
+
+
 # ─── GET /api/rooms/mine ──────────────────────────────────────────────────────
 
 

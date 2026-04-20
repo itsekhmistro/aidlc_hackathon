@@ -518,3 +518,27 @@ def list_invitations(room_id: uuid.UUID, current_user: CookieCurrentUser, sessio
         )
     ).all()
     return list(rows)
+
+
+@router.delete("/{room_id}/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def cancel_invitation(
+    room_id: uuid.UUID,
+    invitation_id: uuid.UUID,
+    current_user: CookieCurrentUser,
+    session: SessionDep,
+) -> None:
+    _get_room_or_404(session, room_id)
+    _require_admin(session, room_id, current_user.id)
+
+    inv = session.exec(
+        select(RoomInvitation).where(
+            RoomInvitation.id == invitation_id,
+            RoomInvitation.room_id == room_id,
+            RoomInvitation.accepted_at.is_(None),  # type: ignore[attr-defined]
+        )
+    ).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+
+    session.delete(inv)
+    session.commit()
