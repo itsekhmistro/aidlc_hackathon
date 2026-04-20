@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SidebarRight from "../components/SidebarRight";
 import { api } from "../lib/api";
@@ -79,8 +79,10 @@ describe("SidebarRight", () => {
       expect(screen.getByText("bob")).toBeInTheDocument();
     });
     // The rendered order should be: bob (online), carol (online), alice (afk), zeta (offline)
-    const rows = container.querySelectorAll(".flex.items-center.gap-2.px-3.py-1\\.5");
-    const names = Array.from(rows).map((r) => within(r as HTMLElement).getByText(/.+/).textContent);
+    const nameSpans = container.querySelectorAll<HTMLSpanElement>(
+      "span.flex-1.truncate.text-gray-800",
+    );
+    const names = Array.from(nameSpans).map((el) => el.textContent);
     expect(names[0]).toBe("bob");
     expect(names[1]).toBe("carol");
     expect(names[2]).toBe("alice");

@@ -1,7 +1,7 @@
 
 ⏺ Gap audit — Initial-goal-definition.md vs shipped state
 
-  Bottom line: 15 of 16 core requirements shipped. 1 cosmetic deferred. Advanced Jabber scope not attempted (explicitly optional in spec §6).
+  Bottom line: 16 of 16 core requirements shipped (post-Wave-3). Advanced Jabber scope not attempted (explicitly optional in spec §6).
 
   Section-by-section coverage
 
@@ -17,13 +17,12 @@
   - 2.2.2 1-minute AFK threshold — ✅ (useActivityTracker:4 — IDLE_MS = 60_000)
   - 2.2.4 Active-sessions list + selective logout — ✅ (SessionsPage, session.revoked WS, shipped TASK-11)
 
-  §2.3 Contacts/friends — 🟡 one minor gap
+  §2.3 Contacts/friends — ✅ complete
 
   - 2.3.1–2.3.4 Friend list, request by username, accept, remove — ✅
-  - 2.3.5 User-to-user ban — ✅ backend (/api/bans); 🟡 UI exposure only via direct API call / sidebar ⋮ is unclear — verify whether ContactRow.tsx's ··· menu includes "Ban user"
+  - 2.3.5 User-to-user ban — ✅ backend (/api/bans) + UI in `ContactRow.tsx` ⋮ menu ("Ban user" with confirm modal)
   - 2.3.6 DM gated on friends + no-ban — ✅ (personal.py:49-54)
-  - 2.3.2 Friend request "from user list in chat room" — 🟡 partial. Spec says requests can originate from a room's members list. The right-sidebar MemberRow currently has no action affordances. Deferred as part
-  of "member context menu" (already in post-demo list)
+  - 2.3.2 Friend request "from user list in chat room" — ✅ Wave 3 closed via `MemberRowMenu.tsx` (right sidebar ⋮ → "Send friend request")
 
   §2.4 Chat rooms — ✅ complete
 
@@ -53,10 +52,10 @@
   - 300 users / 1000 per room / 10k+ history — architected for; load-testing not performed (out of scope for hackathon)
   - Persistence, file-size limits, session behavior — ✅
 
-  §4 UI — 🟡 one cosmetic gap
+  §4 UI — ✅ complete
 
   - 4.1 Three-pane layout, top menu, message area, input — ✅
-  - 4.1.1 Accordion collapse on active room — ❌ deferred (flagged in specs/current-state.md:116). Spec-stated but lowest-value polish
+  - 4.1.1 Accordion collapse on active room — ✅ Wave 3 (`SidebarLeft.tsx`: Contacts collapses on regular-room nav, Rooms collapses on DM nav, user caret toggle overrides)
   - 4.2 Auto-scroll + no-force-scroll + infinite scroll — ✅
   - 4.3 Multiline + emoji (UTF-8) + attachments + reply — ✅
   - 4.4 Unread visual indicators — ✅
@@ -71,21 +70,22 @@
   No XMPP server, no federation, no Jabber UI. Spec says "if you manage to implement requirements above quickly" — given TASK-10 landed T-24h before demo, Jabber is out of realistic scope.
 
   ---
-  What's actually left for a "spec-complete" demo
+  Spec-complete status (Wave 3, 2026-04-20)
 
-  ┌─────┬───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┬───────────────────────────┬────────────────────────────────────────────────────────┐
-  │  #  │                                                       Item                                                        │           Est.            │                       Demo value                       │
-  ├─────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────┼────────────────────────────────────────────────────────┤
-  │ A   │ Member context menu in SidebarRight (Send message, Send friend request, Ban, Make admin/etc.) — closes the 2.3.2  │ 30–45 min                 │ 🟡 Medium — mirrors a common chat UX; the backend is   │
-  │     │ "from user list in room" gap                                                                                      │                           │ fully in place                                         │
-  ├─────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────┼────────────────────────────────────────────────────────┤
-  │ B   │ Sidebar accordion collapse on active room (§4.1.1)                                                                │ 30 min                    │ 🟢 Low — cosmetic; doesn't affect any flow             │
-  ├─────┼───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┼───────────────────────────┼────────────────────────────────────────────────────────┤
-  │ C   │ Contact-row ban action (§2.3.5 via UI, not just API) — check if ContactRow menu already includes it               │ 0–15 min pending          │ 🟢 Low                                                 │
-  │     │                                                                                                                   │ verification              │                                                        │
-  └─────┴───────────────────────────────────────────────────────────────────────────────────────────────────────────────────┴───────────────────────────┴────────────────────────────────────────────────────────┘
+  All §2–§5 requirements shipped. §6 (Jabber) remains out of scope per original carve-out.
 
-  Everything else in §2–§5 is shipped. §6 (Jabber) is out of scope.
+  Wave 3 closed the final polish items:
+
+  - **A · Member context menu in `SidebarRight`** — `MemberRowMenu.tsx` exposes
+    Send message, Send friend request (hidden when already friends), Make/Remove admin
+    (owner-only), Ban from room (with confirm). Role-gated identically to the Manage
+    Room → Members tab. Closes §2.3.2.
+  - **B · Sidebar accordion collapse** — `SidebarLeft.tsx` auto-collapses the
+    non-active section when navigating into a room (Contacts collapses) or a DM
+    (Rooms collapses). Collapse state is user-toggleable via the section header
+    caret. Closes §4.1.1.
+  - **C · Contact-row ban action** — already shipped earlier in `ContactRow.tsx`
+    (⋮ menu → "Ban user" with confirm modal). Re-verified 2026-04-20; no work needed.
 
   ---
   Demo-script confidence (5-step happy path)
@@ -99,24 +99,22 @@
   Smoke coverage: `e2e/smoke.spec.ts` walks `/chat`, `/rooms`, `/sessions`, `/profile` — no uncaught console errors, exactly one "Current session" pill.
 
   ---
-  Final verification (2026-04-20, post-Wave-2)
+  Final verification (2026-04-20, post-Wave-3)
 
   - Backend: 184 pytest passing (1 pre-existing skip)
-  - Frontend: 116 vitest passing · 0 TypeScript errors · clean Vite build (shadcn deps resolve via `@/*` alias)
-  - E2E: 11 Playwright specs passing (including new `admin.spec.ts`)
+  - Frontend: 130 vitest passing · 0 TypeScript errors · clean Vite build (shadcn deps resolve via `@/*` alias)
+  - E2E: 11 Playwright specs passing (including `admin.spec.ts`)
   - Migration auto-applies on container boot (idempotent); uploads persist across `force-recreate`
-  - Frontend image rebuilt post-shadcn-install (adds `@base-ui/react`, `class-variance-authority`, `tw-animate-css`, `@fontsource-variable/geist`)
   - No open 🔴 blockers
 
-  Branch: `greenbase` · last commits: `967bffb` (TASK-10), `087779a` (TASK-11)
+  Branch: `greenbase` · Wave 2 commits: `967bffb` (TASK-10), `087779a` (TASK-11)
 
   ---
   Deferred (post-demo)
 
   - 🟡 Inline image preview for attachments — `MessageBubble.tsx` currently renders every attachment as a text link; distinguish image MIME types and render `<img>` inline (≤20 min)
   - 🟡 Reply round-trip Playwright coverage — UI and backend wiring verified manually; no e2e asserts the reply-preview bubble renders after round-trip (≤20 min)
-  - 🟡 Member context menu (⋮) in `SidebarRight` — spec 10 wireframe called for right-click/⋮ on member rows with Send message / Make admin / Ban / Send friend request. Current shipping uses the Members tab in Manage Room modal for admin actions; a context menu on sidebar rows would be faster but adds surface area. Skipped for demo scope
   - 🟡 `room.invitation_cancelled` WS event — currently admin cancel is local-refetch only; invitee's "pending invitation" banner stays live until they refresh or click-through. Cosmetic at demo scale
   - 🟡 `message.new` cache invalidation is per-room refetch — replace with surgical cache updates for perf under load
-  - 🟢 Sidebar accordion collapse on active room (`specs/09-frontend-layout.md`)
+  - 🟡 Sidebar search (filter rooms + contacts by name) — spec §4.1 / `09-frontend-layout.md` acceptance box still open; non-blocking at demo scale (a handful of rooms per user)
   - ⬜ Jabber / XMPP federation (`specs/13-jabber.md`) — advanced scope, not targeted for this hackathon

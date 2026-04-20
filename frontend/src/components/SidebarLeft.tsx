@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import AddFriendModal from "./AddFriendModal";
 import ContactRow from "./ContactRow";
 import CreateRoomForm from "./CreateRoomForm";
@@ -16,16 +16,47 @@ export default function SidebarLeft() {
   const { data: rooms = [], isError: roomsError } = useMyRooms();
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [contactsCollapsed, setContactsCollapsed] = useState(false);
+  const [roomsCollapsed, setRoomsCollapsed] = useState(false);
 
   const navigate = useNavigate();
   const params = useParams<{ roomId?: string }>();
+  const location = useLocation();
   const activeRoomId = params.roomId ?? null;
+  const isOnDm = location.pathname.startsWith("/chat/dm/");
+
+  // Auto-collapse the non-active section when a room/DM is open. Resets every
+  // time the active surface changes; user toggles after that point win until
+  // the next navigation.
+  useEffect(() => {
+    if (isOnDm) {
+      setRoomsCollapsed(true);
+      setContactsCollapsed(false);
+    } else if (activeRoomId) {
+      setContactsCollapsed(true);
+      setRoomsCollapsed(false);
+    } else {
+      setContactsCollapsed(false);
+      setRoomsCollapsed(false);
+    }
+  }, [activeRoomId, isOnDm]);
 
   const handleRoomClick = (roomId: string) => {
     clearUnread(roomId);
     api.post(`/api/unread/${roomId}/mark-read`).catch(() => {});
     navigate(`/chat/rooms/${roomId}`);
   };
+
+  const Caret = ({ collapsed }: { collapsed: boolean }) => (
+    <span
+      aria-hidden="true"
+      className={`text-[10px] text-gray-400 transition-transform ${
+        collapsed ? "" : "rotate-90"
+      }`}
+    >
+      ▶
+    </span>
+  );
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
@@ -46,9 +77,16 @@ export default function SidebarLeft() {
         {/* Contacts */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
+            <button
+              type="button"
+              onClick={() => setContactsCollapsed((v) => !v)}
+              aria-expanded={!contactsCollapsed}
+              aria-controls="sidebar-contacts"
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider px-1 hover:text-gray-700"
+            >
+              <Caret collapsed={contactsCollapsed} />
               Contacts
-            </p>
+            </button>
             <button
               onClick={() => setShowAddFriend(true)}
               className="text-xs text-blue-600 hover:text-blue-800 px-1"
@@ -58,21 +96,32 @@ export default function SidebarLeft() {
             </button>
           </div>
 
-          {friendsError ? (
-            <p className="text-xs text-gray-400 px-2 py-1">Could not load contacts</p>
-          ) : friends.length === 0 ? (
-            <p className="text-xs text-gray-400 px-2 py-1">No contacts yet</p>
-          ) : (
-            friends.map((f) => <ContactRow key={f.id} friendship={f} />)
+          {!contactsCollapsed && (
+            <div id="sidebar-contacts">
+              {friendsError ? (
+                <p className="text-xs text-gray-400 px-2 py-1">Could not load contacts</p>
+              ) : friends.length === 0 ? (
+                <p className="text-xs text-gray-400 px-2 py-1">No contacts yet</p>
+              ) : (
+                friends.map((f) => <ContactRow key={f.id} friendship={f} />)
+              )}
+            </div>
           )}
         </div>
 
         {/* Rooms */}
         <div>
           <div className="flex items-center justify-between mb-1">
-            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
+            <button
+              type="button"
+              onClick={() => setRoomsCollapsed((v) => !v)}
+              aria-expanded={!roomsCollapsed}
+              aria-controls="sidebar-rooms"
+              className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider px-1 hover:text-gray-700"
+            >
+              <Caret collapsed={roomsCollapsed} />
               Rooms
-            </p>
+            </button>
             <button
               onClick={() => setShowCreateRoom((v) => !v)}
               className="text-xs text-blue-600 hover:text-blue-800 px-1"
@@ -82,29 +131,33 @@ export default function SidebarLeft() {
             </button>
           </div>
 
-          {showCreateRoom && <CreateRoomForm onClose={() => setShowCreateRoom(false)} />}
+          {!roomsCollapsed && (
+            <div id="sidebar-rooms">
+              {showCreateRoom && <CreateRoomForm onClose={() => setShowCreateRoom(false)} />}
 
-          {roomsError ? (
-            <p className="text-xs text-gray-400 px-2 py-1">Could not load rooms</p>
-          ) : rooms.length === 0 ? (
-            <p className="text-xs text-gray-400 px-2 py-1">No rooms yet</p>
-          ) : (
-            rooms.map((room) => (
-              <RoomRow
-                key={room.id}
-                room={room}
-                isActive={room.id === activeRoomId}
-                onClick={() => handleRoomClick(room.id)}
-              />
-            ))
+              {roomsError ? (
+                <p className="text-xs text-gray-400 px-2 py-1">Could not load rooms</p>
+              ) : rooms.length === 0 ? (
+                <p className="text-xs text-gray-400 px-2 py-1">No rooms yet</p>
+              ) : (
+                rooms.map((room) => (
+                  <RoomRow
+                    key={room.id}
+                    room={room}
+                    isActive={room.id === activeRoomId}
+                    onClick={() => handleRoomClick(room.id)}
+                  />
+                ))
+              )}
+
+              <Link
+                to="/rooms"
+                className="mt-2 block text-xs text-blue-600 hover:text-blue-800 px-3 py-1"
+              >
+                Discover rooms →
+              </Link>
+            </div>
           )}
-
-          <Link
-            to="/rooms"
-            className="mt-2 block text-xs text-blue-600 hover:text-blue-800 px-3 py-1"
-          >
-            Discover rooms →
-          </Link>
         </div>
       </div>
 

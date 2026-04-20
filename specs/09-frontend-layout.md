@@ -112,10 +112,10 @@ Members ({count})
 
 ## Acceptance Criteria
 
-- [ ] Layout matches wireframe: nav + left sidebar + centre + right panel
-- [ ] Sidebar accordion collapses non-active room sections when a room is open
+- [x] Layout matches wireframe: nav + left sidebar + centre + right panel
+- [x] Sidebar accordion collapses non-active room sections when a room is open
 - [ ] Search in sidebar filters rooms and contacts by name
-- [ ] Navigating between rooms/DMs works without page reload
-- [ ] Right panel shows correct members with presence for active room
-- [ ] Profile dropdown accessible from top nav
-- [ ] "Create room" modal accessible from sidebar
+- [x] Navigating between rooms/DMs works without page reload
+- [x] Right panel shows correct members with presence for active room
+- [x] Profile dropdown accessible from top nav
+- [x] "Create room" modal accessible from sidebar

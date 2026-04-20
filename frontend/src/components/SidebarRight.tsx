@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useRoomMembers } from "../hooks/useRoomMembers";
 import { useCurrentUser } from "../hooks/useAuth";
+import { useRoomDetail } from "../hooks/useRooms";
 import { PresenceDot } from "./PresenceDot";
 import { usePresence } from "../lib/presenceStore";
 import type { MemberRole, PresenceStatus, RoomMemberPublic } from "../lib/types";
 import ManageRoomModal from "./ManageRoomModal";
+import MemberRowMenu from "./MemberRowMenu";
 
 interface Props {
   roomId: string;
@@ -30,19 +32,34 @@ function RoleBadge({ role }: { role: MemberRole }) {
   );
 }
 
-function MemberRow({ member }: { member: RoomMemberPublic }) {
-  // usePresence returns "offline" by default; fall back to the API snapshot
-  // until the presence store has a live entry for this user.
+interface MemberRowProps {
+  member: RoomMemberPublic;
+  roomId: string;
+  roomName: string;
+  myRole: MemberRole;
+  meId: string | null;
+}
+
+function MemberRow({ member, roomId, roomName, myRole, meId }: MemberRowProps) {
   const live = usePresence(member.user_id);
   const status: PresenceStatus =
     live === "offline" && member.presence_status !== "offline"
       ? member.presence_status
       : live;
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 text-sm">
+    <div className="group flex items-center gap-2 px-3 py-1.5 text-sm">
       <PresenceDot status={status} />
       <span className="flex-1 truncate text-gray-800">{member.username}</span>
       <RoleBadge role={member.role} />
+      {meId && (
+        <MemberRowMenu
+          roomId={roomId}
+          roomName={roomName}
+          member={member}
+          myRole={myRole}
+          meId={meId}
+        />
+      )}
     </div>
   );
 }
@@ -50,9 +67,9 @@ function MemberRow({ member }: { member: RoomMemberPublic }) {
 export default function SidebarRight({ roomId }: Props) {
   const { data: members = [], isLoading, isError } = useRoomMembers(roomId);
   const { data: me } = useCurrentUser();
+  const { data: room } = useRoomDetail(roomId);
   const [manageOpen, setManageOpen] = useState(false);
 
-  // Sort: status order, then username.
   const sorted = [...members].sort((a, b) => {
     const sa = STATUS_ORDER[a.presence_status];
     const sb = STATUS_ORDER[b.presence_status];
@@ -60,8 +77,10 @@ export default function SidebarRight({ roomId }: Props) {
     return a.username.localeCompare(b.username);
   });
 
-  const myRole = members.find((m) => m.user_id === me?.id)?.role;
+  const myRole: MemberRole =
+    members.find((m) => m.user_id === me?.id)?.role ?? "member";
   const canManage = myRole === "owner" || myRole === "admin";
+  const roomName = room?.name ?? "";
 
   return (
     <aside className="w-56 bg-white border-l border-gray-200 flex flex-col h-full">
@@ -87,7 +106,16 @@ export default function SidebarRight({ roomId }: Props) {
         ) : sorted.length === 0 ? (
           <p className="text-xs text-gray-400 px-4 py-2">No members</p>
         ) : (
-          sorted.map((m) => <MemberRow key={m.user_id} member={m} />)
+          sorted.map((m) => (
+            <MemberRow
+              key={m.user_id}
+              member={m}
+              roomId={roomId}
+              roomName={roomName}
+              myRole={myRole}
+              meId={me?.id ?? null}
+            />
+          ))
         )}
       </div>
       {manageOpen && (
