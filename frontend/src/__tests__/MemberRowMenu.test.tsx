@@ -185,4 +185,83 @@ describe("MemberRowMenu", () => {
       expect(mockApi.delete).toHaveBeenCalledWith("/api/rooms/room-1/members/u-2"),
     );
   });
+
+  it("admin cannot act on another admin peer (Ban hidden)", async () => {
+    const user = userEvent.setup();
+    renderMenu({ myRole: "admin", member: member({ role: "admin" }) });
+    await user.click(screen.getByRole("button", { name: /actions for bob/i }));
+    expect(screen.queryByRole("button", { name: "Ban from room" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Make admin" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Remove admin" })).toBeNull();
+  });
+
+  it("still shows Send friend request when the peer has only a pending friendship", async () => {
+    const user = userEvent.setup();
+    stubFriends([
+      {
+        id: "f-1",
+        requester_id: "u-1",
+        requester_username: "me",
+        addressee_id: "u-2",
+        addressee_username: "bob",
+        status: "pending",
+        message: null,
+        created_at: "",
+        updated_at: "",
+      },
+    ]);
+    renderMenu();
+    await waitFor(() => expect(mockApi.get).toHaveBeenCalledWith("/api/friends"));
+    await user.click(screen.getByRole("button", { name: /actions for bob/i }));
+    expect(
+      screen.getByRole("button", { name: "Send friend request" }),
+    ).toBeVisible();
+  });
+
+  it("Make admin POSTs to /admin for an owner viewer and a member peer", async () => {
+    const user = userEvent.setup();
+    renderMenu({ myRole: "owner" });
+    await user.click(screen.getByRole("button", { name: /actions for bob/i }));
+    await user.click(screen.getByRole("button", { name: "Make admin" }));
+    await waitFor(() =>
+      expect(mockApi.post).toHaveBeenCalledWith(
+        "/api/rooms/room-1/members/u-2/admin",
+      ),
+    );
+  });
+
+  it("Remove admin DELETEs /admin for an owner viewer and an admin peer", async () => {
+    const user = userEvent.setup();
+    renderMenu({ myRole: "owner", member: member({ role: "admin" }) });
+    await user.click(screen.getByRole("button", { name: /actions for bob/i }));
+    await user.click(screen.getByRole("button", { name: "Remove admin" }));
+    await waitFor(() =>
+      expect(mockApi.delete).toHaveBeenCalledWith(
+        "/api/rooms/room-1/members/u-2/admin",
+      ),
+    );
+  });
+
+  it("Cancel in the ban confirm modal does not issue a DELETE", async () => {
+    const user = userEvent.setup();
+    renderMenu({ myRole: "owner" });
+    await user.click(screen.getByRole("button", { name: /actions for bob/i }));
+    await user.click(screen.getByRole("button", { name: "Ban from room" }));
+    expect(screen.getByText("Ban member")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText("Ban member")).toBeNull();
+    expect(mockApi.delete).not.toHaveBeenCalled();
+  });
+
+  it("closes the menu when the user clicks outside the wrapper", async () => {
+    const user = userEvent.setup();
+    renderMenu();
+    await user.click(screen.getByRole("button", { name: /actions for bob/i }));
+    expect(screen.getByRole("button", { name: "Send message" })).toBeVisible();
+    // Simulate a mousedown outside the menu wrapper (the registered listener).
+    document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "Send message" })).toBeNull(),
+    );
+  });
 });

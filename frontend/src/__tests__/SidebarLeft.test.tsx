@@ -142,4 +142,16 @@ describe("SidebarLeft accordion", () => {
     ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("bob")).toBeVisible();
   });
+
+  it("lets the user collapse Rooms while a room is active", async () => {
+    const user = userEvent.setup();
+    renderSidebar("/chat/rooms/r-1");
+    await waitFor(() => expect(screen.getByText("general")).toBeVisible());
+    await user.click(screen.getByRole("button", { name: /rooms/i }));
+    expect(screen.getByRole("button", { name: /rooms/i })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    expect(screen.queryByText("general")).toBeNull();
+  });
 });
