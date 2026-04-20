@@ -1,6 +1,6 @@
 services:
   db:
-    image: postgres:18
+    image: docker.io/library/postgres:18
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -17,13 +17,6 @@ services:
       retries: 5
 
   backend:
-    # Load-test note (TASK-16): the container's internal file-descriptor limit
-    # is 1M+ on Linux hosts, so the server side is fine under S2 fanout (1000
-    # members). The bottleneck is the *client* harness: Locust running on a
-    # macOS host defaults to `ulimit -n 256`, which caps concurrent WS clients
-    # well below the scenario's needs. Before launching Locust on the host,
-    # run `ulimit -n 8192` in the harness shell. Do NOT attempt to set ulimits
-    # on this container — it's not the problem.
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -43,7 +36,7 @@ services:
     command:
       [
         "sh", "-c",
-        "uv run alembic upgrade head && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --ws-ping-interval 20 --ws-ping-timeout 30"
+        "uv run alembic upgrade head && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
       ]
     depends_on:
       db:
