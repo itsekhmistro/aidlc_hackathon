@@ -11,7 +11,7 @@ test.describe("Auth flows", () => {
     await passwordFields.first().fill("Password123!");
     await passwordFields.nth(1).fill("Password123!");
     await page.getByRole("button", { name: /create account/i }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL(/\/chat(\/|$)/);
   });
 
   test("login with valid credentials redirects to chat", async ({ page }) => {
@@ -23,7 +23,7 @@ test.describe("Auth flows", () => {
     await page.getByPlaceholder("you@example.com").fill(`u${ts}@test.com`);
     await page.getByPlaceholder("••••••••").fill("Password123!");
     await page.getByRole("button", { name: /sign in/i }).click();
-    await expect(page).toHaveURL("/");
+    await expect(page).toHaveURL(/\/chat(\/|$)/);
   });
 
   test("login with wrong password shows error", async ({ page }) => {

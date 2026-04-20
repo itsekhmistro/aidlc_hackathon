@@ -13,6 +13,31 @@ def test_list_sessions_returns_current_active_session(client):
     assert sessions[0]["id"] is not None
 
 
+# ── is_current flag ──────────────────────────────────────────────────────────
+
+
+def test_list_sessions_flags_single_session_as_current(client):
+    register_and_login(client, "alice", "alice@test.com")
+    sessions = client.get("/api/sessions").json()
+    assert len(sessions) == 1
+    assert sessions[0]["is_current"] is True
+
+
+def test_list_sessions_exactly_one_current_with_multiple_sessions(client):
+    register_and_login(client, "alice", "alice@test.com")
+    # Second login creates a new UserSession row; the cookie jar now
+    # holds the newer token, so only the newer row is "current".
+    client.post(
+        "/api/auth/login",
+        json={"email": "alice@test.com", "password": "password123", "persistent": False},
+    )
+    sessions = client.get("/api/sessions").json()
+    assert len(sessions) == 2
+    current_flags = [s["is_current"] for s in sessions]
+    assert current_flags.count(True) == 1
+    assert current_flags.count(False) == 1
+
+
 def test_list_sessions_requires_auth(client):
     r = client.get("/api/sessions")
     assert r.status_code == 401

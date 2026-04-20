@@ -30,6 +30,13 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-hackathon}
       SECRET_KEY: ${SECRET_KEY:-changeme}
       BACKEND_CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://frontend:5173"]'
+    volumes:
+      - uploads_data:/uploads
+    command:
+      [
+        "sh", "-c",
+        "uv run alembic upgrade head && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      ]
     depends_on:
       db:
         condition: service_healthy
@@ -53,3 +60,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:

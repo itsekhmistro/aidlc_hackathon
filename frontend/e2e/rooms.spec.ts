@@ -8,7 +8,7 @@ async function registerAndLogin(page: any, ts: number) {
   await page.getByPlaceholder("you@example.com").fill(`r${ts}@test.com`);
   await page.getByPlaceholder("••••••••").fill("Password123!");
   await page.getByRole("button", { name: /sign in/i }).click();
-  await expect(page).toHaveURL("/");
+  await expect(page).toHaveURL(/\/chat(\/|$)/);
   // Wait for sidebar to fully load
   await page.waitForSelector("text=Rooms");
 }

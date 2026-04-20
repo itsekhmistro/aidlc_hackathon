@@ -28,6 +28,7 @@ function session(overrides: Partial<SessionPublic>): SessionPublic {
     ip_address: "1.2.3.4",
     created_at: "2026-04-20T10:00:00Z",
     last_seen_at: "2026-04-20T12:00:00Z",
+    is_current: false,
     ...overrides,
   };
 }
@@ -84,5 +85,25 @@ describe("SessionsPage", () => {
     await waitFor(() => {
       expect(screen.getByText(/Unknown device/i)).toBeInTheDocument();
     });
+  });
+
+  it("shows 'Current session' pill instead of Revoke for the current row", async () => {
+    mockApi.get = vi.fn().mockResolvedValue([
+      session({ id: "s-current", user_agent: "Chrome", is_current: true }),
+      session({ id: "s-other", user_agent: "Firefox", is_current: false }),
+    ]);
+    renderSessionsPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("Chrome")).toBeInTheDocument();
+      expect(screen.getByText("Firefox")).toBeInTheDocument();
+    });
+
+    // Exactly one "Current session" pill, for the current row
+    expect(screen.getByText(/Current session/i)).toBeInTheDocument();
+
+    // Exactly one Revoke button — for the non-current row
+    const revokeButtons = screen.getAllByRole("button", { name: /revoke/i });
+    expect(revokeButtons).toHaveLength(1);
   });
 });

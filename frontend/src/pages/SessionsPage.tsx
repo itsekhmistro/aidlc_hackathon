@@ -30,13 +30,19 @@ function SessionCard({
         </p>
         <p className="text-xs text-gray-400">Created: {formatDate(session.created_at)}</p>
       </div>
-      <button
-        onClick={onRevoke}
-        disabled={revokePending}
-        className="text-xs px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
-      >
-        {revokePending ? "Revoking…" : "Revoke"}
-      </button>
+      {session.is_current ? (
+        <span className="text-xs bg-blue-100 text-blue-700 rounded px-2 py-0.5">
+          Current session
+        </span>
+      ) : (
+        <button
+          onClick={onRevoke}
+          disabled={revokePending}
+          className="text-xs px-3 py-1.5 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+        >
+          {revokePending ? "Revoking…" : "Revoke"}
+        </button>
+      )}
     </div>
   );
 }

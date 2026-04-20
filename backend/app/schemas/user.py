@@ -28,6 +28,7 @@ class SessionPublic(SQLModel):
     ip_address: str | None
     created_at: datetime
     last_seen_at: datetime
+    is_current: bool = False
 
 
 class PasswordResetRequest(SQLModel):

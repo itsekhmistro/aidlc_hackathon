@@ -18,6 +18,7 @@ export interface SessionPublic {
   ip_address: string | null;
   created_at: string;
   last_seen_at: string;
+  is_current: boolean;
 }
 
 export interface RoomPublic {

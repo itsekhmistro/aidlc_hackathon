@@ -1,6 +1,5 @@
 import { useEffect } from "react";
-import { useParams } from "react-router-dom";
-import MessageThread from "../components/MessageThread";
+import { useNavigate, useParams } from "react-router-dom";
 import { useCurrentUser } from "../hooks/useAuth";
 import { usePersonalRoomForUser } from "../hooks/useRooms";
 import { api } from "../lib/api";
@@ -8,6 +7,7 @@ import { clearUnread } from "../lib/unreadStore";
 
 export default function DmChatPage() {
   const { userId } = useParams<{ userId: string }>();
+  const navigate = useNavigate();
   const { data: me } = useCurrentUser();
   const { data: room, isLoading, isError } = usePersonalRoomForUser(userId);
 
@@ -16,6 +16,14 @@ export default function DmChatPage() {
     clearUnread(room.id);
     api.post(`/api/unread/${room.id}/mark-read`).catch(() => {});
   }, [room?.id]);
+
+  // Once the personal room is resolved, redirect to the stable /chat/rooms/:roomId
+  // URL so the address is shareable and the regular RoomChatPage takes over.
+  useEffect(() => {
+    if (room?.id) {
+      navigate(`/chat/rooms/${room.id}`, { replace: true });
+    }
+  }, [room?.id, navigate]);
 
   if (isError) {
     return (
@@ -32,5 +40,7 @@ export default function DmChatPage() {
     );
   }
 
-  return <MessageThread room={room} currentUserId={me.id} />;
+  // The redirect effect above will unmount this component; render nothing
+  // in the brief interval before navigation commits.
+  return null;
 }
