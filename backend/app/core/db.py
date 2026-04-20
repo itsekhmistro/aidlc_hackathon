@@ -1,4 +1,5 @@
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
+from contextlib import contextmanager
 
 from sqlmodel import Session, SQLModel, create_engine
 
@@ -25,5 +26,20 @@ def create_db_and_tables() -> None:
 
 
 def get_session() -> Generator[Session, None, None]:
+    with Session(engine) as session:
+        yield session
+
+
+@contextmanager
+def session_scope() -> Iterator[Session]:
+    """Non-DI session context for code paths that can't use ``Depends``.
+
+    The WebSocket endpoint in ``app.api.routes.ws`` offloads DB work to
+    ``asyncio.to_thread`` (see TASK-16 NFR load-test prep); FastAPI's
+    ``Depends(get_session)`` would pin a pool connection for the
+    connection's lifetime. Callers route through this helper instead of
+    constructing ``Session(engine)`` inline so tests can override the
+    scope by monkeypatching ``app.core.db.session_scope``.
+    """
     with Session(engine) as session:
         yield session

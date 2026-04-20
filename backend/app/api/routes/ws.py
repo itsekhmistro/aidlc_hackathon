@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 # Spec: specs/11-websocket-protocol.md:127 — reap silent clients after 90s.
 IDLE_TIMEOUT = 90
 
-from app.core.db import engine
+from app.core import db as _db
 from app.core.presence import presence_manager
 from app.models.user import Presence, User, UserSession
 
@@ -54,7 +54,7 @@ def _upsert_presence(session: Session, user_id: uuid.UUID, status: str) -> None:
 
 
 def _auth_sync(auth_token: str | None) -> uuid.UUID | None:
-    with Session(engine) as s:
+    with _db.session_scope() as s:
         user = _get_user_from_cookie(auth_token, s)
         return user.id if user else None
 
@@ -62,7 +62,7 @@ def _auth_sync(auth_token: str | None) -> uuid.UUID | None:
 def _upsert_and_audience_sync(
     user_id: uuid.UUID, status: str
 ) -> set[uuid.UUID]:
-    with Session(engine) as s:
+    with _db.session_scope() as s:
         _upsert_presence(s, user_id, status)
         return presence_manager._get_audience(user_id, s)
 
