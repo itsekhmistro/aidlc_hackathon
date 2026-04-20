@@ -53,7 +53,10 @@ export default function MessageThread({ room, currentUserId }: Props) {
 
       {/* Input */}
       <MessageInput
-        onSend={(content) => sendMessage.mutate(content)}
+        roomId={room.id}
+        onSend={(content, attachmentIds) =>
+          sendMessage.mutate({ content, attachment_ids: attachmentIds })
+        }
         disabled={sendMessage.isPending}
       />
     </div>

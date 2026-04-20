@@ -30,6 +30,7 @@ class MessagePublic(SQLModel):
 class MessageCreate(SQLModel):
     content: str
     reply_to_id: uuid.UUID | None = None
+    attachment_ids: list[uuid.UUID] = []
 
 
 class MessageUpdate(SQLModel):

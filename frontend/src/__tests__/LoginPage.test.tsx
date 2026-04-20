@@ -31,7 +31,7 @@ describe("LoginPage", () => {
       isPending: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof useLogin>);
+    } as unknown as ReturnType<typeof useLogin>);
     mockMutateAsync.mockReset();
   });
 

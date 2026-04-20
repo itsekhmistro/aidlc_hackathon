@@ -94,6 +94,7 @@ export interface MessagePublic {
 export interface MessageCreate {
   content: string;
   reply_to_id?: string | null;
+  attachment_ids?: string[];
 }
 
 export interface MessagePage {
@@ -173,10 +174,7 @@ export interface WsMessageNew extends WsEventBase {
 
 export interface WsMessageEdited extends WsEventBase {
   type: "message.edited";
-  room_id: string;
-  message_id: string;
-  content: string;
-  edited_at: string;
+  message: MessagePublic;
 }
 
 export interface WsMessageDeleted extends WsEventBase {
@@ -267,7 +265,7 @@ export interface WsUserBanned extends WsEventBase {
 export interface WsUnreadIncrement extends WsEventBase {
   type: "unread.increment";
   room_id: string;
-  count: number;
+  count?: number;
 }
 
 export interface WsUnreadCleared extends WsEventBase {

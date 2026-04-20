@@ -94,12 +94,14 @@ describe("useSendMessage", () => {
     const wrapper = makeWrapper();
     const { result } = renderHook(() => useSendMessage("room-1"), { wrapper });
 
-    result.current.mutate("Hello World");
+    result.current.mutate({ content: "Hello World" });
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(mockApi.post).toHaveBeenCalledWith("/api/rooms/room-1/messages", {
       content: "Hello World",
+      reply_to_id: null,
+      attachment_ids: [],
     });
   });
 });

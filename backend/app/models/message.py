@@ -25,7 +25,8 @@ class Attachment(SQLModel, table=True):
     __tablename__ = "attachment"
 
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    message_id: uuid.UUID = Field(foreign_key="message.id", index=True)
+    message_id: uuid.UUID | None = Field(default=None, foreign_key="message.id", index=True)
+    room_id: uuid.UUID = Field(foreign_key="room.id", index=True)
     original_filename: str = Field(max_length=255)
     stored_path: str = Field(max_length=1000)
     mime_type: str = Field(max_length=100)

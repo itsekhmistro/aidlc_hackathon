@@ -19,8 +19,12 @@ export function useMessages(roomId: string | null) {
 export function useSendMessage(roomId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (content: string) =>
-      api.post<MessagePublic>(`/api/rooms/${roomId}/messages`, { content }),
+    mutationFn: ({ content, attachment_ids }: { content: string; attachment_ids?: string[] }) =>
+      api.post<MessagePublic>(`/api/rooms/${roomId}/messages`, {
+        content,
+        reply_to_id: null,
+        attachment_ids: attachment_ids ?? [],
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["messages", roomId] }),
   });
 }

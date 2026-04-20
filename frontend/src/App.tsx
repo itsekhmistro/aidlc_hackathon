@@ -1,17 +1,25 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useActivityTracker } from "./hooks/useActivityTracker";
 import { useCurrentUser } from "./hooks/useAuth";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { setBulkPresence, setPresence } from "./lib/presenceStore";
-import type { ClientEvent, ServerEvent } from "./lib/types";
-import ChatLayout from "./pages/ChatLayout";
+import { setUnreadCounts, incrementUnread, clearUnread } from "./lib/unreadStore";
+import { api } from "./lib/api";
+import type { ClientEvent, ServerEvent, UnreadCountsPublic } from "./lib/types";
+import ChatEmpty from "./pages/ChatEmpty";
+import DmChatPage from "./pages/DmChatPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import LoginPage from "./pages/LoginPage";
+import ProfilePage from "./pages/ProfilePage";
 import RegisterPage from "./pages/RegisterPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import RoomChatPage from "./pages/RoomChatPage";
+import RoomsPage from "./pages/RoomsPage";
+import SessionsPage from "./pages/SessionsPage";
 
 // Stable tab ID persisted across soft reloads, gone on tab close
 const TAB_ID = (() => {
@@ -38,7 +46,7 @@ function AppWebSocket() {
       } else if (event.type === "message.new") {
         qc.invalidateQueries({ queryKey: ["messages", event.room_id] });
       } else if (event.type === "message.edited") {
-        qc.invalidateQueries({ queryKey: ["messages", event.room_id] });
+        qc.invalidateQueries({ queryKey: ["messages", event.message.room_id] });
       } else if (event.type === "message.deleted") {
         qc.invalidateQueries({ queryKey: ["messages", event.room_id] });
       } else if (event.type === "friend.request_received") {
@@ -50,6 +58,10 @@ function AppWebSocket() {
       } else if (event.type === "user.banned") {
         qc.invalidateQueries({ queryKey: ["friends"] });
         qc.invalidateQueries({ queryKey: ["bans"] });
+      } else if (event.type === "unread.increment") {
+        incrementUnread(event.room_id);
+      } else if (event.type === "unread.cleared") {
+        clearUnread(event.room_id);
       }
     },
     [qc],
@@ -69,17 +81,13 @@ function AppWebSocket() {
     return () => clearInterval(id);
   }, [isAuthenticated, readyState, sendMessage]);
 
-  return null;
-}
+  // Fetch initial unread counts when user logs in
+  useEffect(() => {
+    if (!me) return;
+    api.get<UnreadCountsPublic>("/api/unread").then((data) => setUnreadCounts(data.counts)).catch(() => {});
+  }, [me?.id]);
 
-function Dashboard() {
-  return (
-    <ChatLayout>
-      <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-        Select a contact to start chatting
-      </div>
-    </ChatLayout>
-  );
+  return null;
 }
 
 export default function App() {
@@ -92,8 +100,16 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute />}>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/" element={<Navigate to="/chat" replace />} />
+          <Route element={<AppShell />}>
+            <Route path="/chat" element={<ChatEmpty />} />
+            <Route path="/chat/rooms/:roomId" element={<RoomChatPage />} />
+            <Route path="/chat/dm/:userId" element={<DmChatPage />} />
+            <Route path="/rooms" element={<RoomsPage />} />
+            <Route path="/sessions" element={<SessionsPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/chat" replace />} />
         </Route>
       </Routes>
     </>

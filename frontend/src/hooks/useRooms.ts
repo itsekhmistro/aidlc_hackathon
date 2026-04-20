@@ -53,3 +53,21 @@ export function usePersonalRoom() {
     },
   });
 }
+
+export function usePersonalRoomForUser(userId: string | null | undefined) {
+  return useQuery<RoomPublic>({
+    queryKey: ["personal-rooms", userId],
+    queryFn: () => api.get<RoomPublic>(`/api/personal-rooms/${userId}`),
+    retry: false,
+    enabled: !!userId,
+  });
+}
+
+export function useRoomDetail(roomId: string | null | undefined) {
+  return useQuery<RoomPublic>({
+    queryKey: ["rooms", "detail", roomId],
+    queryFn: () => api.get<RoomPublic>(`/api/rooms/${roomId}`),
+    retry: false,
+    enabled: !!roomId,
+  });
+}

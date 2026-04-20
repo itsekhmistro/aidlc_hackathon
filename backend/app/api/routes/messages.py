@@ -127,6 +127,15 @@ async def send_message(
     session.commit()
     session.refresh(message)
 
+    if msg.attachment_ids:
+        for att_id in msg.attachment_ids:
+            att = session.get(Attachment, att_id)
+            if att and att.uploaded_by_id == current_user.id and att.room_id == room_id and att.message_id is None:
+                att.message_id = message.id
+                session.add(att)
+        session.commit()
+        session.refresh(message)
+
     public = _to_message_public(session, message)
     await _broadcast_room_event(
         session,

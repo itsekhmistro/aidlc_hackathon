@@ -31,7 +31,7 @@ describe("RegisterPage", () => {
       isPending: false,
       isError: false,
       error: null,
-    } as ReturnType<typeof useRegister>);
+    } as unknown as ReturnType<typeof useRegister>);
     mockMutateAsync.mockReset();
   });
 

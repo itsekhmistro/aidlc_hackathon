@@ -5,6 +5,12 @@ interface Props {
   isOwn: boolean;
 }
 
+function formatBytes(b: number): string {
+  if (b < 1024) return `${b}B`;
+  if (b < 1_048_576) return `${(b / 1024).toFixed(1)}KB`;
+  return `${(b / 1_048_576).toFixed(1)}MB`;
+}
+
 export default function MessageBubble({ message, isOwn }: Props) {
   if (message.deleted) {
     return (
@@ -26,6 +32,21 @@ export default function MessageBubble({ message, isOwn }: Props) {
         }`}
       >
         <p className="break-words">{message.content}</p>
+        {message.attachments.length > 0 && (
+          <div className="mt-1 space-y-0.5">
+            {message.attachments.map((att) => (
+              <a
+                key={att.id}
+                href={`/api/attachments/${att.id}`}
+                target="_blank"
+                rel="noreferrer"
+                className={`flex items-center gap-1 text-xs underline ${isOwn ? "text-blue-100 hover:text-white" : "text-blue-600 hover:text-blue-800"}`}
+              >
+                📎 {att.original_filename} ({formatBytes(att.size_bytes)})
+              </a>
+            ))}
+          </div>
+        )}
         {message.edited_at && (
           <span className={`text-xs ${isOwn ? "text-blue-200" : "text-gray-400"}`}> (edited)</span>
         )}
