@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -26,14 +27,33 @@ const WS_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${win
 function AppWebSocket() {
   const { data: me } = useCurrentUser();
   const isAuthenticated = !!me;
+  const qc = useQueryClient();
 
-  const handleMessage = useCallback((event: ServerEvent) => {
-    if (event.type === "presence.update") {
-      setPresence(event.user_id, event.status);
-    } else if (event.type === "presence.bulk") {
-      setBulkPresence(event.presences);
-    }
-  }, []);
+  const handleMessage = useCallback(
+    (event: ServerEvent) => {
+      if (event.type === "presence.update") {
+        setPresence(event.user_id, event.status);
+      } else if (event.type === "presence.bulk") {
+        setBulkPresence(event.presences);
+      } else if (event.type === "message.new") {
+        qc.invalidateQueries({ queryKey: ["messages", event.room_id] });
+      } else if (event.type === "message.edited") {
+        qc.invalidateQueries({ queryKey: ["messages", event.room_id] });
+      } else if (event.type === "message.deleted") {
+        qc.invalidateQueries({ queryKey: ["messages", event.room_id] });
+      } else if (event.type === "friend.request_received") {
+        qc.invalidateQueries({ queryKey: ["friends", "requests"] });
+      } else if (event.type === "friend.accepted") {
+        qc.invalidateQueries({ queryKey: ["friends"] });
+      } else if (event.type === "friend.removed") {
+        qc.invalidateQueries({ queryKey: ["friends"] });
+      } else if (event.type === "user.banned") {
+        qc.invalidateQueries({ queryKey: ["friends"] });
+        qc.invalidateQueries({ queryKey: ["bans"] });
+      }
+    },
+    [qc],
+  );
 
   const { sendMessage, readyState } = useWebSocket<ServerEvent>(
     isAuthenticated ? WS_URL : "",

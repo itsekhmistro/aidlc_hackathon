@@ -213,6 +213,16 @@ async def accept_invitation(invitation_id: uuid.UUID, current_user: CookieCurren
     })
 
 
+@router.get("/mine", response_model=list[RoomPublic])
+async def get_my_rooms(current_user: CookieCurrentUser, session: SessionDep) -> list:
+    members = session.exec(select(RoomMember).where(RoomMember.user_id == current_user.id)).all()
+    room_ids = [m.room_id for m in members]
+    if not room_ids:
+        return []
+    rooms = session.exec(select(Room).where(Room.id.in_(room_ids))).all()  # type: ignore[attr-defined]
+    return [_to_room_public(session, r) for r in rooms]
+
+
 @router.get("/{room_id}", response_model=RoomPublic)
 def get_room(room_id: uuid.UUID, current_user: CookieCurrentUser, session: SessionDep) -> dict:
     room = _get_room_or_404(session, room_id)

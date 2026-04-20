@@ -1,4 +1,5 @@
 import { useState } from "react";
+import MessageThread from "../components/MessageThread";
 import { PresenceDot } from "../components/PresenceDot";
 import { useCurrentUser, useLogout } from "../hooks/useAuth";
 import {
@@ -9,7 +10,8 @@ import {
   useRemoveFriend,
   useSendFriendRequest,
 } from "../hooks/useFriends";
-import type { FriendshipPublic } from "../lib/types";
+import { useCreateRoom, useMyRooms } from "../hooks/useRooms";
+import type { FriendshipPublic, RoomPublic, RoomVisibility } from "../lib/types";
 import { usePresence } from "../lib/presenceStore";
 
 // ── Contact row ────────────────────────────────────────────────────────────────
@@ -208,14 +210,116 @@ function AddFriendModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ── Room row ───────────────────────────────────────────────────────────────────
+
+function RoomRow({
+  room,
+  isActive,
+  onClick,
+}: {
+  room: RoomPublic;
+  isActive: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+        isActive
+          ? "bg-blue-100 text-blue-800 font-medium"
+          : "text-gray-700 hover:bg-gray-100"
+      }`}
+    >
+      <span className="text-gray-400">#</span>
+      <span className="flex-1 truncate">{room.name}</span>
+      {room.is_personal && (
+        <span className="text-xs text-gray-400">personal</span>
+      )}
+    </button>
+  );
+}
+
+// ── Create room form ───────────────────────────────────────────────────────────
+
+function CreateRoomForm({ onClose }: { onClose: () => void }) {
+  const createRoom = useCreateRoom();
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [visibility, setVisibility] = useState<RoomVisibility>("public");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    await createRoom.mutateAsync({
+      name: name.trim(),
+      description: description.trim() || null,
+      visibility,
+    });
+    onClose();
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="px-3 pb-2 space-y-2">
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Room name"
+        autoFocus
+        required
+        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <input
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="Description (optional)"
+        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+      <select
+        value={visibility}
+        onChange={(e) => setVisibility(e.target.value as RoomVisibility)}
+        className="w-full border border-gray-300 rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="public">Public</option>
+        <option value="private">Private</option>
+      </select>
+      {createRoom.isError && (
+        <p className="text-xs text-red-600">{(createRoom.error as Error).message}</p>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={createRoom.isPending || !name.trim()}
+          className="flex-1 text-xs bg-blue-600 text-white rounded py-1 hover:bg-blue-700 disabled:opacity-50"
+        >
+          {createRoom.isPending ? "Creating…" : "Create"}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 text-xs bg-gray-100 text-gray-700 rounded py-1 hover:bg-gray-200"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 // ── Sidebar ────────────────────────────────────────────────────────────────────
 
-function Sidebar() {
+interface SidebarProps {
+  activeRoomId: string | null;
+  onRoomSelect: (roomId: string) => void;
+}
+
+function Sidebar({ activeRoomId, onRoomSelect }: SidebarProps) {
   const { data: me } = useCurrentUser();
   const logout = useLogout();
   const { data: friends = [], isError: friendsError } = useFriends();
   const { data: requests = [] } = useFriendRequests();
+  const { data: rooms = [], isError: roomsError } = useMyRooms();
   const [showAddFriend, setShowAddFriend] = useState(false);
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-screen">
@@ -242,28 +346,66 @@ function Sidebar() {
         </div>
       )}
 
-      {/* Contacts */}
-      <div className="flex-1 overflow-y-auto px-3 pt-3">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
-            Contacts
-          </p>
-          <button
-            onClick={() => setShowAddFriend(true)}
-            className="text-xs text-blue-600 hover:text-blue-800 px-1"
-            title="Add friend"
-          >
-            + Add
-          </button>
+      {/* Scrollable content area */}
+      <div className="flex-1 overflow-y-auto px-3 pt-3 space-y-4">
+        {/* Contacts */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
+              Contacts
+            </p>
+            <button
+              onClick={() => setShowAddFriend(true)}
+              className="text-xs text-blue-600 hover:text-blue-800 px-1"
+              title="Add friend"
+            >
+              + Add
+            </button>
+          </div>
+
+          {friendsError ? (
+            <p className="text-xs text-gray-400 px-2 py-1">Could not load contacts</p>
+          ) : friends.length === 0 ? (
+            <p className="text-xs text-gray-400 px-2 py-1">No contacts yet</p>
+          ) : (
+            friends.map((f) => <ContactRow key={f.id} friendship={f} />)
+          )}
         </div>
 
-        {friendsError ? (
-          <p className="text-xs text-gray-400 px-2 py-1">Could not load contacts</p>
-        ) : friends.length === 0 ? (
-          <p className="text-xs text-gray-400 px-2 py-1">No contacts yet</p>
-        ) : (
-          friends.map((f) => <ContactRow key={f.id} friendship={f} />)
-        )}
+        {/* Rooms */}
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1">
+              Rooms
+            </p>
+            <button
+              onClick={() => setShowCreateRoom((v) => !v)}
+              className="text-xs text-blue-600 hover:text-blue-800 px-1"
+              title="Create room"
+            >
+              + New
+            </button>
+          </div>
+
+          {showCreateRoom && (
+            <CreateRoomForm onClose={() => setShowCreateRoom(false)} />
+          )}
+
+          {roomsError ? (
+            <p className="text-xs text-gray-400 px-2 py-1">Could not load rooms</p>
+          ) : rooms.length === 0 ? (
+            <p className="text-xs text-gray-400 px-2 py-1">No rooms yet</p>
+          ) : (
+            rooms.map((room) => (
+              <RoomRow
+                key={room.id}
+                room={room}
+                isActive={room.id === activeRoomId}
+                onClick={() => onRoomSelect(room.id)}
+              />
+            ))
+          )}
+        </div>
       </div>
 
       {showAddFriend && <AddFriendModal onClose={() => setShowAddFriend(false)} />}
@@ -274,10 +416,26 @@ function Sidebar() {
 // ── Chat layout ────────────────────────────────────────────────────────────────
 
 export default function ChatLayout({ children }: { children?: React.ReactNode }) {
+  const { data: me } = useCurrentUser();
+  const { data: rooms = [] } = useMyRooms();
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+
+  const activeRoom = rooms.find((r) => r.id === activeRoomId) ?? null;
+
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <Sidebar activeRoomId={activeRoomId} onRoomSelect={setActiveRoomId} />
+      <main className="flex-1 overflow-hidden">
+        {activeRoom && me ? (
+          <MessageThread room={activeRoom} currentUserId={me.id} />
+        ) : children ? (
+          <div className="overflow-auto h-full">{children}</div>
+        ) : (
+          <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+            Select a room to start chatting
+          </div>
+        )}
+      </main>
     </div>
   );
 }

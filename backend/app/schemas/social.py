@@ -21,6 +21,12 @@ class FriendRequestCreate(SQLModel):
     message: str | None = None
 
 
+class UserBanPublic(SQLModel):
+    banner_id: uuid.UUID
+    banned_id: uuid.UUID
+    created_at: datetime
+
+
 class PresenceBulkRequest(SQLModel):
     user_ids: list[uuid.UUID]
 
