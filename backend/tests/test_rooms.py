@@ -579,3 +579,44 @@ def test_list_invitations_as_non_admin_returns_403(client: TestClient):
     client.cookies.clear()
     _auth(client, "plainquest")
     assert client.get(f"/api/rooms/{room['id']}/invitations").status_code == 403
+
+
+# ─── GET /api/rooms/mine ──────────────────────────────────────────────────────
+
+
+def test_list_mine_returns_only_member_rooms(client: TestClient):
+    """GET /api/rooms/mine returns only rooms the authenticated user is a member of."""
+    _auth(client, "mineowner")
+    room_mine = _create_room(client, "my-private-room", "private")
+
+    client.cookies.clear()
+    _auth(client, "mineother")
+    _create_room(client, "other-room", "public")
+
+    client.cookies.clear()
+    _login(client, "mineowner")
+    rooms = client.get("/api/rooms/mine").json()
+    room_ids = [r["id"] for r in rooms]
+    assert room_mine["id"] in room_ids
+    # other-room should NOT be in mineowner's rooms (not a member)
+    other_names = [r["name"] for r in rooms]
+    assert "other-room" not in other_names
+
+
+def test_list_mine_unauthenticated_returns_401(client: TestClient):
+    r = client.get("/api/rooms/mine")
+    assert r.status_code == 401
+
+
+def test_list_mine_includes_joined_public_rooms(client: TestClient):
+    """Rooms the user joined (not just created) also appear in /mine."""
+    _auth(client, "pubowner")
+    pub_room = _create_room(client, "joinable-mine-room", "public")
+
+    client.cookies.clear()
+    _auth(client, "joiner_mine")
+    client.post(f"/api/rooms/{pub_room['id']}/join")
+
+    rooms = client.get("/api/rooms/mine").json()
+    ids = [r["id"] for r in rooms]
+    assert pub_room["id"] in ids
