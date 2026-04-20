@@ -26,6 +26,11 @@ from app.schemas.user import (
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+@router.get("/me", response_model=UserPublic)
+def get_me(current_user: CookieCurrentUser) -> User:
+    return current_user
+
+
 def _create_session_cookie(
     db: object,
     response: Response,

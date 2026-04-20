@@ -38,6 +38,7 @@ export function useWebSocket<T = unknown>(
   const intentionalClose = useRef(false);
 
   const connect = useCallback(() => {
+    if (!url) return;
     const ws = new WebSocket(url);
     wsRef.current = ws;
     setReadyState("connecting");

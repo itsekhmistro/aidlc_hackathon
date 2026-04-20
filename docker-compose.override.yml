@@ -22,4 +22,6 @@ services:
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html
+    environment:
+      BACKEND_URL: "http://backend:8000"
     command: ["npm", "run", "dev", "--", "--host"]

@@ -4,6 +4,32 @@ from fastapi.testclient import TestClient  # noqa: F401
 from tests.conftest import register_and_login
 
 
+# ── GET /api/auth/me ─────────────────────────────────────────────────────────
+
+
+def test_get_me_returns_current_user(client):
+    register_and_login(client, "alice", "alice@test.com")
+    r = client.get("/api/auth/me")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["username"] == "alice"
+    assert data["email"] == "alice@test.com"
+    assert "id" in data
+    assert "hashed_password" not in data
+
+
+def test_get_me_requires_auth(client):
+    r = client.get("/api/auth/me")
+    assert r.status_code == 401
+
+
+def test_get_me_after_logout_returns_401(client):
+    register_and_login(client, "alice", "alice@test.com")
+    client.post("/api/auth/logout")
+    r = client.get("/api/auth/me")
+    assert r.status_code == 401
+
+
 def _register(client: TestClient, username: str, email: str, password: str = "password123") -> dict:
     r = client.post("/api/auth/register", json={"username": username, "email": email, "password": password})
     return r

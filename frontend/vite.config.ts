@@ -1,6 +1,10 @@
+/// <reference types="vitest" />
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+
+const backendUrl = process.env.BACKEND_URL ?? "http://localhost:8000";
+const backendWsUrl = backendUrl.replace(/^http/, "ws");
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -8,14 +12,19 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: backendUrl,
         changeOrigin: true,
       },
       "/ws": {
-        target: "ws://localhost:8000",
+        target: backendWsUrl,
         ws: true,
         changeOrigin: true,
       },
     },
+  },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/test-setup.ts"],
   },
 });

@@ -1,74 +1,81 @@
-import { useCallback, useState } from "react";
-import { Route, Routes } from "react-router-dom";
+import { useCallback, useEffect } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
-import { useLogout } from "./hooks/useAuth";
+import { useActivityTracker } from "./hooks/useActivityTracker";
+import { useCurrentUser } from "./hooks/useAuth";
 import { useWebSocket } from "./hooks/useWebSocket";
-import type { ServerEvent } from "./lib/types";
+import { setBulkPresence, setPresence } from "./lib/presenceStore";
+import type { ClientEvent, ServerEvent } from "./lib/types";
+import ChatLayout from "./pages/ChatLayout";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
-const CLIENT_ID = crypto.randomUUID?.() ??
-  Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
-const WS_URL = `ws://localhost:8000/ws/${CLIENT_ID}`;
+// Stable tab ID persisted across soft reloads, gone on tab close
+const TAB_ID = (() => {
+  const stored = sessionStorage.getItem("tab_id");
+  if (stored) return stored;
+  const id = crypto.randomUUID?.() ?? Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  sessionStorage.setItem("tab_id", id);
+  return id;
+})();
 
-function Dashboard() {
-  const [events, setEvents] = useState<ServerEvent[]>([]);
-  const logout = useLogout();
+const WS_URL = `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws?tab_id=${TAB_ID}`;
 
-  const handleMessage = useCallback((data: ServerEvent) => {
-    setEvents((prev) => [...prev.slice(-99), data]);
+function AppWebSocket() {
+  const { data: me } = useCurrentUser();
+  const isAuthenticated = !!me;
+
+  const handleMessage = useCallback((event: ServerEvent) => {
+    if (event.type === "presence.update") {
+      setPresence(event.user_id, event.status);
+    } else if (event.type === "presence.bulk") {
+      setBulkPresence(event.presences);
+    }
   }, []);
 
-  const { sendMessage, readyState } = useWebSocket<ServerEvent>(WS_URL, {
-    onMessage: handleMessage,
-  });
+  const { sendMessage, readyState } = useWebSocket<ServerEvent>(
+    isAuthenticated ? WS_URL : "",
+    { onMessage: handleMessage },
+  );
 
+  useActivityTracker(TAB_ID, sendMessage as (e: ClientEvent) => void, isAuthenticated && readyState === "open");
+
+  // Ping keepalive every 30s
+  useEffect(() => {
+    if (!isAuthenticated || readyState !== "open") return;
+    const id = setInterval(() => sendMessage({ type: "ping" }), 30_000);
+    return () => clearInterval(id);
+  }, [isAuthenticated, readyState, sendMessage]);
+
+  return null;
+}
+
+function Dashboard() {
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Hackathon App</h1>
-        <button
-          onClick={logout}
-          className="text-sm text-gray-500 hover:text-gray-700 underline"
-        >
-          Sign out
-        </button>
+    <ChatLayout>
+      <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+        Select a contact to start chatting
       </div>
-      <p className="mb-4 text-sm text-gray-500">
-        WS: <span className="font-mono">{readyState}</span>
-      </p>
-      <div className="flex gap-2 mb-6">
-        <button
-          onClick={() => sendMessage({ type: "ping" })}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-        >
-          Ping
-        </button>
-        <button
-          onClick={() => sendMessage({ type: "broadcast", payload: "hello everyone" })}
-          className="px-4 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700"
-        >
-          Broadcast
-        </button>
-      </div>
-      <div className="space-y-1">
-        {events.map((e, i) => (
-          <pre key={i} className="text-xs bg-white border rounded p-2 font-mono">
-            {JSON.stringify(e)}
-          </pre>
-        ))}
-      </div>
-    </div>
+    </ChatLayout>
   );
 }
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route element={<ProtectedRoute />}>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="*" element={<Dashboard />} />
-      </Route>
-    </Routes>
+    <>
+      <AppWebSocket />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </>
   );
 }
