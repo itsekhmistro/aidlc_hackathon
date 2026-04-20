@@ -31,6 +31,7 @@ Phase 1 — Foundation      Phase 2 — Features        Phase 3 — Polish + Adv
 | 11-websocket-protocol | `/backend` | 10-admin-ui |
 | 12-infrastructure | `/docker` | 10-admin-ui |
 | 13-jabber | `/backend` + `/docker` + `/frontend` | — (last) |
+| 16-nfr-load-testing | `/qa` + `/backend` + `/docker` | — (post-feature) |
 
 ## Key Risks
 
@@ -55,3 +56,4 @@ Phase 1 — Foundation      Phase 2 — Features        Phase 3 — Polish + Adv
 - [11-websocket-protocol.md](11-websocket-protocol.md)
 - [12-infrastructure.md](12-infrastructure.md)
 - [13-jabber.md](13-jabber.md)
+- [16-nfr-load-testing.md](16-nfr-load-testing.md) — load & perf verification against NFR §3

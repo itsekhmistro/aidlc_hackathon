@@ -92,6 +92,80 @@ def test_send_message_happy_path_returns_201(client: TestClient):
     assert data["author_username"] == "msgowner4"
     assert data["deleted"] is False
     assert data["edited_at"] is None
+    # TASK-16: client_msg_id is always present in the response schema; when
+    # the caller didn't supply one it echoes back None.
+    assert data["client_msg_id"] is None
+
+
+def test_send_message_echoes_client_msg_id_in_response_and_ws(client: TestClient):
+    """TASK-16: harness-supplied client_msg_id must appear in (a) the HTTP
+    201 body and (b) the `message.new` event delivered to a second member
+    of the room. Load test harness uses this to compute e2e latency."""
+    from app.core.presence import presence_manager
+
+    # Reset any leftover cache state between tests.
+    presence_manager._room_members.clear()
+    presence_manager.connections.clear()
+    presence_manager.tab_status.clear()
+
+    _auth(client, "cmidowner")
+    room = _create_room(client, "cmid-room")
+
+    client.cookies.clear()
+    _auth(client, "cmidreceiver")
+    r_join = client.post(f"/api/rooms/{room['id']}/join")
+    assert r_join.status_code in (200, 204), r_join.text
+
+    with client.websocket_connect("/ws?tab_id=cmid-tab") as ws:
+        # Drain the initial presence.bulk.
+        first = ws.receive_json()
+        assert first["type"] == "presence.bulk"
+
+        # Author posts with a correlation id. (Switch auth cookie.)
+        client.cookies.clear()
+        r_login = client.post(
+            "/api/auth/login",
+            json={
+                "email": "cmidowner@test.com",
+                "password": "password123",
+                "persistent": False,
+            },
+        )
+        assert r_login.status_code == 200, r_login.text
+
+        r_post = client.post(
+            f"/api/rooms/{room['id']}/messages",
+            json={"content": "hello", "client_msg_id": "abc123"},
+        )
+        assert r_post.status_code == 201, r_post.text
+        assert r_post.json()["client_msg_id"] == "abc123"
+
+        # Receiver's WS gets message.new with the id echoed through.
+        # Drain until we see message.new (we may get unread.increment first).
+        seen = None
+        for _ in range(5):
+            ev = ws.receive_json()
+            if ev.get("type") == "message.new":
+                seen = ev
+                break
+        assert seen is not None, "never received message.new"
+        assert seen["message"]["client_msg_id"] == "abc123"
+
+
+def test_history_read_does_not_echo_client_msg_id(client: TestClient):
+    """`client_msg_id` is per-request only — never persisted, always None on
+    history reads."""
+    _auth(client, "cmidhistory")
+    room = _create_room(client, "cmid-history-room")
+    client.post(
+        f"/api/rooms/{room['id']}/messages",
+        json={"content": "with correlation", "client_msg_id": "xyz789"},
+    )
+    r = client.get(f"/api/rooms/{room['id']}/messages")
+    assert r.status_code == 200
+    msgs = r.json()["messages"]
+    assert len(msgs) == 1
+    assert msgs[0]["client_msg_id"] is None
 
 
 def test_send_message_non_member_returns_403(client: TestClient):

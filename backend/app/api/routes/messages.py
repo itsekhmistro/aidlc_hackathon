@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -28,16 +29,33 @@ def _get_membership(session, room_id: uuid.UUID, user_id: uuid.UUID) -> RoomMemb
     ).first()
 
 
-def _room_member_ids(session, room_id: uuid.UUID) -> list[uuid.UUID]:
-    return session.exec(select(RoomMember.user_id).where(RoomMember.room_id == room_id)).all()
+def _room_member_ids(session, room_id: uuid.UUID) -> set[uuid.UUID]:
+    """Cached read-through to the ``room_member`` table."""
+    return presence_manager.get_room_members(session, room_id)
 
 
 async def _broadcast_room_event(session, room_id: uuid.UUID, event: dict[str, Any]) -> None:
-    for uid in _room_member_ids(session, room_id):
-        await presence_manager.send_to_user(uid, event)
+    """Fan ``event`` out to every room member in parallel.
+
+    ``send_to_user`` already swallows per-connection exceptions, so the
+    ``return_exceptions=True`` here is belt-and-suspenders — guarantees a
+    bug in one branch can never cancel the others.
+    """
+    member_ids = _room_member_ids(session, room_id)
+    if not member_ids:
+        return
+    await asyncio.gather(
+        *(presence_manager.send_to_user(uid, event) for uid in member_ids),
+        return_exceptions=True,
+    )
 
 
-def _to_message_public(session, message: Message) -> MessagePublic:
+def _to_message_public(
+    session,
+    message: Message,
+    *,
+    client_msg_id: str | None = None,
+) -> MessagePublic:
     author = session.get(User, message.author_id)
     attachments = session.exec(
         select(Attachment).where(Attachment.message_id == message.id)
@@ -71,6 +89,7 @@ def _to_message_public(session, message: Message) -> MessagePublic:
         created_at=message.created_at,
         edited_at=message.edited_at,
         deleted=message.deleted_at is not None,
+        client_msg_id=client_msg_id,
     )
 
 
@@ -148,20 +167,24 @@ async def send_message(
         session.commit()
         session.refresh(message)
 
-    public = _to_message_public(session, message)
+    public = _to_message_public(session, message, client_msg_id=msg.client_msg_id)
     await _broadcast_room_event(
         session,
         room_id,
         {"type": "message.new", "room_id": str(room_id), "message": public.model_dump(mode="json")},
     )
 
-    # unread.increment for every room member except the author
-    for uid in _room_member_ids(session, room_id):
-        if uid != current_user.id:
-            await presence_manager.send_to_user(uid, {
-                "type": "unread.increment",
-                "room_id": str(room_id),
-            })
+    # unread.increment for every room member except the author — fan out in
+    # parallel (TASK-16: 1000-member rooms would previously serialize this).
+    unread_targets = [
+        uid for uid in _room_member_ids(session, room_id) if uid != current_user.id
+    ]
+    if unread_targets:
+        unread_event = {"type": "unread.increment", "room_id": str(room_id)}
+        await asyncio.gather(
+            *(presence_manager.send_to_user(uid, unread_event) for uid in unread_targets),
+            return_exceptions=True,
+        )
 
     return public
 

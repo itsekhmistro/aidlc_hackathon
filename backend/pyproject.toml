@@ -21,4 +21,9 @@ dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.25.0",
     "httpx>=0.28.0",
+    # TASK-16 load-test harness. websocket-client is the gevent-friendly
+    # sync client that pairs with Locust's greenlet workers — do NOT swap
+    # in the asyncio `websockets` library here.
+    "locust>=2.31",
+    "websocket-client>=1.8",
 ]

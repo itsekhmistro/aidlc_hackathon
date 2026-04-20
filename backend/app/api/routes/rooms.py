@@ -1,3 +1,4 @@
+import asyncio
 import pathlib
 import shutil
 import uuid
@@ -88,13 +89,20 @@ def _get_room_or_404(session, room_id: uuid.UUID) -> Room:
     return room
 
 
-def _room_member_ids(session, room_id: uuid.UUID) -> list[uuid.UUID]:
-    return session.exec(select(RoomMember.user_id).where(RoomMember.room_id == room_id)).all()
+def _room_member_ids(session, room_id: uuid.UUID) -> set[uuid.UUID]:
+    """Cached read-through to the ``room_member`` table."""
+    return presence_manager.get_room_members(session, room_id)
 
 
 async def _broadcast_room_event(session, room_id: uuid.UUID, event: dict[str, Any]) -> None:
-    for uid in _room_member_ids(session, room_id):
-        await presence_manager.send_to_user(uid, event)
+    """Fan ``event`` out to every room member in parallel."""
+    member_ids = _room_member_ids(session, room_id)
+    if not member_ids:
+        return
+    await asyncio.gather(
+        *(presence_manager.send_to_user(uid, event) for uid in member_ids),
+        return_exceptions=True,
+    )
 
 
 def _build_member_public(session, member: RoomMember) -> RoomMemberPublic:
@@ -177,6 +185,7 @@ def create_room(current_user: CookieCurrentUser, session: SessionDep, room_in: R
     session.add(member)
     session.commit()
     session.refresh(room)
+    presence_manager.invalidate_room(room.id)
     return _to_room_public(session, room, current_user.id)
 
 
@@ -217,6 +226,7 @@ async def accept_invitation(invitation_id: uuid.UUID, current_user: CookieCurren
     inv.accepted_at = datetime.now(timezone.utc)
     session.add(inv)
     session.commit()
+    presence_manager.invalidate_room(inv.room_id)
 
     member = _get_membership(session, inv.room_id, current_user.id)
     await _broadcast_room_event(session, inv.room_id, {
@@ -282,12 +292,19 @@ async def delete_room(room_id: uuid.UUID, current_user: CookieCurrentUser, sessi
     if room.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Owner only")
 
-    member_ids = _room_member_ids(session, room_id)
+    # Snapshot member ids BEFORE the cascade delete so we can fan out
+    # room.deleted to each affected user, then invalidate the cache.
+    member_ids = set(_room_member_ids(session, room_id))
     _cascade_delete_room(session, room)
     session.commit()
+    presence_manager.invalidate_room(room_id)
 
-    for uid in member_ids:
-        await presence_manager.send_to_user(uid, {"type": "room.deleted", "room_id": str(room_id)})
+    if member_ids:
+        event = {"type": "room.deleted", "room_id": str(room_id)}
+        await asyncio.gather(
+            *(presence_manager.send_to_user(uid, event) for uid in member_ids),
+            return_exceptions=True,
+        )
 
 
 @router.post("/{room_id}/join", status_code=status.HTTP_204_NO_CONTENT)
@@ -309,6 +326,7 @@ async def join_room(room_id: uuid.UUID, current_user: CookieCurrentUser, session
     member = RoomMember(room_id=room_id, user_id=current_user.id, role=MemberRole.member.value)
     session.add(member)
     session.commit()
+    presence_manager.invalidate_room(room_id)
 
     await _broadcast_room_event(session, room_id, {
         "type": "room.member_joined",
@@ -329,6 +347,7 @@ async def leave_room(room_id: uuid.UUID, current_user: CookieCurrentUser, sessio
 
     session.delete(member)
     session.commit()
+    presence_manager.invalidate_room(room_id)
 
     await _broadcast_room_event(session, room_id, {
         "type": "room.member_left",
@@ -414,6 +433,10 @@ async def ban_member(room_id: uuid.UUID, user_id: uuid.UUID, current_user: Cooki
     if not existing_ban:
         session.add(RoomBan(room_id=room_id, user_id=user_id, banned_by_id=current_user.id))
     session.commit()
+    # Invalidate BEFORE broadcast so the banned user is no longer in the
+    # audience (matches pre-cache behavior where _room_member_ids re-queried
+    # the DB after the delete).
+    presence_manager.invalidate_room(room_id)
 
     await _broadcast_room_event(session, room_id, {
         "type": "room.member_banned",

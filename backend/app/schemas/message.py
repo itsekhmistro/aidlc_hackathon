@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlmodel import SQLModel
+from sqlmodel import Field, SQLModel
 
 
 class AttachmentPublic(SQLModel):
@@ -25,12 +25,19 @@ class MessagePublic(SQLModel):
     created_at: datetime
     edited_at: datetime | None
     deleted: bool = False
+    # TASK-16: harness-supplied correlation id, echoed through the live WS
+    # broadcast so the load-test harness can compute e2e latency. Never
+    # persisted — always None for history reads.
+    client_msg_id: str | None = None
 
 
 class MessageCreate(SQLModel):
     content: str
     reply_to_id: uuid.UUID | None = None
     attachment_ids: list[uuid.UUID] = []
+    # TASK-16: optional client-generated correlation id (<= 64 chars).
+    # Pass-through only — not persisted to the DB.
+    client_msg_id: str | None = Field(default=None, max_length=64)
 
 
 class MessageUpdate(SQLModel):
