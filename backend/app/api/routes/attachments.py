@@ -9,7 +9,7 @@ from sqlmodel import select
 from app.api.deps import CookieCurrentUser, SessionDep
 from app.core.config import settings
 from app.models.message import Attachment
-from app.models.room import RoomMember
+from app.models.room import RoomBan, RoomMember
 from app.schemas.message import AttachmentPublic
 
 router = APIRouter(prefix="/api/attachments", tags=["attachments"])
@@ -30,8 +30,15 @@ async def upload_attachment(
         raise HTTPException(status_code=403, detail="Not a member of this room")
 
     content = await file.read()
-    if len(content) > settings.MAX_FILE_SIZE_BYTES:
-        raise HTTPException(status_code=413, detail="File too large")
+    is_image = (file.content_type or "").startswith("image/")
+    size_limit = settings.MAX_IMAGE_SIZE_BYTES if is_image else settings.MAX_FILE_SIZE_BYTES
+    if len(content) > size_limit:
+        limit_mb = size_limit // (1024 * 1024)
+        kind = "Image" if is_image else "File"
+        raise HTTPException(
+            status_code=413,
+            detail=f"{kind} too large (limit {limit_mb} MB)",
+        )
 
     attachment_id = uuid.uuid4()
     safe_name = pathlib.Path(file.filename or "file").name
@@ -74,6 +81,11 @@ def download_attachment(
     att = session.get(Attachment, attachment_id)
     if not att:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    is_banned = session.exec(
+        select(RoomBan).where(RoomBan.room_id == att.room_id, RoomBan.user_id == current_user.id)
+    ).first() is not None
+    if is_banned:
+        raise HTTPException(status_code=403, detail="Access denied")
     is_uploader = att.uploaded_by_id == current_user.id
     is_member = session.exec(
         select(RoomMember).where(RoomMember.room_id == att.room_id, RoomMember.user_id == current_user.id)

@@ -31,6 +31,7 @@ def get_unread_counts(current_user: CookieCurrentUser, session: SessionDep) -> d
             Message,
             (Message.room_id == RoomMember.room_id)
             & Message.deleted_at.is_(None)
+            & (Message.author_id != current_user.id)
             & LastRead.created_at.isnot(None)
             & (Message.created_at > LastRead.created_at),
         )

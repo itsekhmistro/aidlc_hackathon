@@ -1,4 +1,4 @@
-import os
+import pathlib
 import shutil
 import uuid
 from datetime import datetime, timezone
@@ -118,9 +118,9 @@ def _cascade_delete_room(session, room: Room) -> None:
     msgs = session.exec(select(Message).where(Message.room_id == room.id)).all()
     for rr in session.exec(select(ReadReceipt).where(ReadReceipt.room_id == room.id)).all():
         session.delete(rr)
-    for msg in msgs:
-        for att in session.exec(select(Attachment).where(Attachment.message_id == msg.id)).all():
-            session.delete(att)
+    for att in session.exec(select(Attachment).where(Attachment.room_id == room.id)).all():
+        shutil.rmtree(pathlib.Path(att.stored_path).parent, ignore_errors=True)
+        session.delete(att)
     for msg in msgs:
         session.delete(msg)
     for row in session.exec(select(RoomMember).where(RoomMember.room_id == room.id)).all():
@@ -286,10 +286,8 @@ async def delete_room(room_id: uuid.UUID, current_user: CookieCurrentUser, sessi
     _cascade_delete_room(session, room)
     session.commit()
 
-    # Notify then clean up uploads
     for uid in member_ids:
         await presence_manager.send_to_user(uid, {"type": "room.deleted", "room_id": str(room_id)})
-    shutil.rmtree(os.path.join(settings.UPLOAD_DIR, str(room_id)), ignore_errors=True)
 
 
 @router.post("/{room_id}/join", status_code=status.HTTP_204_NO_CONTENT)

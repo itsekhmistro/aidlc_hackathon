@@ -20,6 +20,15 @@ def _auth(client: TestClient, name: str) -> TestClient:
     return register_and_login(client, name, f"{name}@test.com")
 
 
+def _login(client: TestClient, name: str) -> TestClient:
+    r = client.post(
+        "/api/auth/login",
+        json={"email": f"{name}@test.com", "password": "password123", "persistent": False},
+    )
+    assert r.status_code == 200, r.text
+    return client
+
+
 def _create_room(client: TestClient, name: str, visibility: str = "public") -> dict:
     r = client.post("/api/rooms", json={"name": name, "visibility": visibility})
     assert r.status_code == 201, r.text
@@ -81,6 +90,45 @@ def test_upload_attachment_too_large_returns_413(client: TestClient, monkeypatch
     assert r.status_code == 413
 
 
+def test_upload_image_over_3mb_returns_413(client: TestClient, monkeypatch):
+    """Images use MAX_IMAGE_SIZE_BYTES (3 MB), not MAX_FILE_SIZE_BYTES."""
+    monkeypatch.setattr(settings, "MAX_IMAGE_SIZE_BYTES", 100)
+    monkeypatch.setattr(settings, "MAX_FILE_SIZE_BYTES", 20 * 1024 * 1024)
+    _auth(client, "att_img_big")
+    room = _create_room(client, "att-img-big-room")
+    r = client.post(
+        f"/api/attachments/{room['id']}",
+        files=_file(name="pic.png", data=b"x" * 101, mime="image/png"),
+    )
+    assert r.status_code == 413
+    assert "limit" in r.json()["detail"].lower()
+
+
+def test_upload_image_under_3mb_succeeds(client: TestClient):
+    """Image under the 3 MB default limit uploads fine."""
+    _auth(client, "att_img_ok")
+    room = _create_room(client, "att-img-ok-room")
+    r = client.post(
+        f"/api/attachments/{room['id']}",
+        files=_file(name="pic.png", data=b"x" * 1024, mime="image/png"),
+    )
+    assert r.status_code == 201
+    assert r.json()["mime_type"] == "image/png"
+
+
+def test_upload_non_image_between_3mb_and_20mb_succeeds(client: TestClient, monkeypatch):
+    """A ~5 MB non-image should pass (uses the 20 MB limit, not the 3 MB image limit)."""
+    monkeypatch.setattr(settings, "MAX_IMAGE_SIZE_BYTES", 3 * 1024 * 1024)
+    monkeypatch.setattr(settings, "MAX_FILE_SIZE_BYTES", 20 * 1024 * 1024)
+    _auth(client, "att_big_doc")
+    room = _create_room(client, "att-big-doc-room")
+    r = client.post(
+        f"/api/attachments/{room['id']}",
+        files=_file(name="doc.bin", data=b"x" * (5 * 1024 * 1024), mime="application/octet-stream"),
+    )
+    assert r.status_code == 201
+
+
 def test_upload_attachment_sanitizes_path_traversal(client: TestClient, _upload_dir):
     _auth(client, "att_up5")
     room = _create_room(client, "att-sanitize-room")
@@ -129,6 +177,37 @@ def test_download_attachment_by_non_member_returns_403(client: TestClient):
 
     client.cookies.clear()
     _auth(client, "att_dl_outsider")
+    r = client.get(f"/api/attachments/{att_id}")
+    assert r.status_code == 403
+
+
+def test_download_attachment_by_banned_uploader_returns_403(client: TestClient):
+    """A user who gets banned from a room loses access to files they uploaded there."""
+    # owner creates room
+    _auth(client, "att_ban_owner")
+    room = _create_room(client, "att-ban-room", visibility="public")
+
+    # bannable joins and uploads a file
+    client.cookies.clear()
+    _auth(client, "att_ban_victim")
+    client.post(f"/api/rooms/{room['id']}/join")
+    up = client.post(f"/api/attachments/{room['id']}", files=_file(data=b"secret"))
+    att_id = up.json()["id"]
+
+    # Sanity: uploader can download while still a member
+    r = client.get(f"/api/attachments/{att_id}")
+    assert r.status_code == 200
+
+    # owner bans the uploader
+    members = client.get(f"/api/rooms/{room['id']}/members").json()
+    victim_id = next(m["user_id"] for m in members if m["username"] == "att_ban_victim")
+    client.cookies.clear()
+    _login(client, "att_ban_owner")
+    assert client.delete(f"/api/rooms/{room['id']}/members/{victim_id}").status_code == 204
+
+    # banned uploader tries to download → 403
+    client.cookies.clear()
+    _login(client, "att_ban_victim")
     r = client.get(f"/api/attachments/{att_id}")
     assert r.status_code == 403
 
@@ -262,3 +341,32 @@ def test_send_message_without_content_but_with_attachment_succeeds(client: TestC
     )
     assert r.status_code == 201
     assert len(r.json()["attachments"]) == 1
+
+
+# ─── Lifecycle ───────────────────────────────────────────────────────────────
+
+
+def test_room_deletion_removes_attachment_files_from_disk(
+    client: TestClient, _upload_dir
+):
+    """TASK-07 AC #8: deleting a room purges its attachments from disk."""
+    _auth(client, "att_life_owner")
+    room = _create_room(client, "att-life-room")
+    up1 = client.post(f"/api/attachments/{room['id']}", files=_file(name="a.txt"))
+    up2 = client.post(
+        f"/api/attachments/{room['id']}",
+        files=_file(name="b.png", data=b"\x89PNG", mime="image/png"),
+    )
+    att1, att2 = up1.json()["id"], up2.json()["id"]
+
+    path1 = pathlib.Path(_upload_dir) / att1 / "a.txt"
+    path2 = pathlib.Path(_upload_dir) / att2 / "b.png"
+    assert path1.exists() and path2.exists()
+
+    assert client.delete(f"/api/rooms/{room['id']}").status_code == 204
+
+    # Files are gone; DB rows cascade; download returns 404
+    assert not path1.exists()
+    assert not path2.exists()
+    assert client.get(f"/api/attachments/{att1}").status_code == 404
+    assert client.get(f"/api/attachments/{att2}").status_code == 404

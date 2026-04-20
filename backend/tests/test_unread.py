@@ -156,6 +156,38 @@ def test_mark_read_is_idempotent(client: TestClient):
     assert r.json()["counts"][room["id"]] == 0
 
 
+def test_own_messages_do_not_count_as_unread(client: TestClient):
+    """A user's own messages must never appear in their own unread count (spec 08 #45)."""
+    _auth(client, "unr_own_owner")
+    room = _create_room(client, "unr-own-room", visibility="public")
+    # owner sends a baseline message so mark-read has something to anchor on
+    _send(client, room["id"], "baseline")
+
+    client.cookies.clear()
+    _auth(client, "unr_own_reader")
+    client.post(f"/api/rooms/{room['id']}/join")
+    # reader marks the room read (anchors receipt at baseline)
+    client.post(f"/api/unread/{room['id']}/mark-read")
+
+    # reader sends their own messages after mark-read
+    _send(client, room["id"], "my own 1")
+    _send(client, room["id"], "my own 2")
+
+    r = client.get("/api/unread")
+    # Their own messages must not count
+    assert r.json()["counts"][room["id"]] == 0
+
+    # A message from someone else must count
+    client.cookies.clear()
+    _login(client, "unr_own_owner")
+    _send(client, room["id"], "from owner")
+
+    client.cookies.clear()
+    _login(client, "unr_own_reader")
+    r = client.get("/api/unread")
+    assert r.json()["counts"][room["id"]] == 1
+
+
 def test_deleted_messages_do_not_count_as_unread(client: TestClient):
     _auth(client, "unr_del_owner")
     room = _create_room(client, "unr-del-room", visibility="public")

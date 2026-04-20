@@ -128,7 +128,7 @@ All destructive actions require confirmation:
 
 ## Acceptance Criteria
 
-- [ ] Manage Room modal opens with 5 tabs; correct content shown per tab  <!-- PARTIAL: 4 tabs (Members, Banned, Invitations, Settings); Admins controls are merged into Members tab rather than a separate tab (ManageRoomModal.tsx:45-51) -->
+- [x] Manage Room modal opens with 5 tabs; correct content shown per tab  <!-- Members, Admins, Banned users, Invitations, Settings (ManageRoomModal.tsx; AdminsTab.tsx) -->
 - [x] Make admin / Remove admin works and updates member list in real-time
 - [x] Ban member from Members tab → user removed; appears in Banned users tab
 - [x] Unban from Banned tab → user can rejoin

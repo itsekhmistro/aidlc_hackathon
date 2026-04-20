@@ -4,6 +4,7 @@ import { useRoomMembers } from "../hooks/useRoomMembers";
 import type { MemberRole } from "../lib/types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import MembersTab from "./admin/MembersTab";
+import AdminsTab from "./admin/AdminsTab";
 import BannedTab from "./admin/BannedTab";
 import InvitationsTab from "./admin/InvitationsTab";
 import SettingsTab from "./admin/SettingsTab";
@@ -45,7 +46,8 @@ export default function ManageRoomModal({ roomId, onClose }: Props) {
         <Tabs defaultValue="members" className="flex-1 overflow-hidden flex flex-col">
           <TabsList className="mb-4">
             <TabsTrigger value="members">Members</TabsTrigger>
-            <TabsTrigger value="banned">Banned</TabsTrigger>
+            <TabsTrigger value="admins">Admins</TabsTrigger>
+            <TabsTrigger value="banned">Banned users</TabsTrigger>
             <TabsTrigger value="invitations">Invitations</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
@@ -56,6 +58,9 @@ export default function ManageRoomModal({ roomId, onClose }: Props) {
                 myRole={myRole}
                 roomName={room?.name ?? ""}
               />
+            </TabsContent>
+            <TabsContent value="admins">
+              <AdminsTab roomId={roomId} myRole={myRole} />
             </TabsContent>
             <TabsContent value="banned">
               <BannedTab roomId={roomId} />
