@@ -35,3 +35,4 @@ Thumbs.db
 
 # Agent logs (local only)
 .agents-history/
+.claude/scheduled_tasks.lock
