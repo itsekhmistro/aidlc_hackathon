@@ -6,7 +6,8 @@ import { useWebSocket } from "./hooks/useWebSocket";
 import type { ServerEvent } from "./lib/types";
 import LoginPage from "./pages/LoginPage";
 
-const CLIENT_ID = crypto.randomUUID();
+const CLIENT_ID = crypto.randomUUID?.() ??
+  Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
 const WS_URL = `ws://localhost:8000/ws/${CLIENT_ID}`;
 
 function Dashboard() {
