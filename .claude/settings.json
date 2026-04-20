@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "input=$(cat); mkdir -p /Users/itsekhmistro/data/its/hackathon/.agents-history; ts=$(date +%Y%m%d-%H%M%S); subagent=$(echo \"$input\" | jq -r '.tool_input.subagent_type // \"agent\"'); echo \"$input\" | jq -r '.tool_input.prompt' > \"/Users/itsekhmistro/data/its/hackathon/.agents-history/${ts}-${subagent}.txt\"",
+            "command": "python3 -c \"\nimport sys, json, os, datetime\ntry:\n    obj = json.loads(sys.stdin.read())\n    subagent = (obj.get('tool_input') or {}).get('subagent_type') or 'agent'\n    prompt = (obj.get('tool_input') or {}).get('prompt') or ''\nexcept Exception:\n    subagent, prompt = 'agent', ''\nts = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')\nos.makedirs('/Users/itsekhmistro/data/its/hackathon/.agents-history', exist_ok=True)\nopen(f'/Users/itsekhmistro/data/its/hackathon/.agents-history/{ts}-{subagent}.txt', 'w').write(prompt)\n\"",
             "statusMessage": "Logging agent prompt..."
           }
         ]
