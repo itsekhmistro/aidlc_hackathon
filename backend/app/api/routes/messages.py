@@ -131,8 +131,16 @@ async def send_message(
     await _broadcast_room_event(
         session,
         room_id,
-        {"type": "message.new", "message": public.model_dump(mode="json")},
+        {"type": "message.new", "room_id": str(room_id), "message": public.model_dump(mode="json")},
     )
+
+    # unread.increment for every room member except the author
+    for uid in _room_member_ids(session, room_id):
+        if uid != current_user.id:
+            await presence_manager.send_to_user(uid, {
+                "type": "unread.increment",
+                "room_id": str(room_id),
+            })
 
     return public
 

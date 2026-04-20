@@ -49,6 +49,7 @@ export function usePersonalRoom() {
     mutationFn: (userId: string) => api.get<RoomPublic>(`/api/personal-rooms/${userId}`),
     onSuccess: (room) => {
       qc.setQueryData(["rooms", "detail", room.id], room);
+      qc.invalidateQueries({ queryKey: ["rooms", "mine"] });
     },
   });
 }

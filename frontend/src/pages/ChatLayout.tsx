@@ -10,16 +10,23 @@ import {
   useRemoveFriend,
   useSendFriendRequest,
 } from "../hooks/useFriends";
-import { useCreateRoom, useMyRooms } from "../hooks/useRooms";
+import { useCreateRoom, useMyRooms, usePersonalRoom } from "../hooks/useRooms";
 import type { FriendshipPublic, RoomPublic, RoomVisibility } from "../lib/types";
 import { usePresence } from "../lib/presenceStore";
 
 // ── Contact row ────────────────────────────────────────────────────────────────
 
-function ContactRow({ friendship }: { friendship: FriendshipPublic }) {
+function ContactRow({
+  friendship,
+  onOpenDm,
+}: {
+  friendship: FriendshipPublic;
+  onOpenDm: (roomId: string) => void;
+}) {
   const { data: me } = useCurrentUser();
   const removeFriend = useRemoveFriend();
   const banUser = useBanUser();
+  const personalRoom = usePersonalRoom();
   const [showMenu, setShowMenu] = useState(false);
   const [showBanConfirm, setShowBanConfirm] = useState(false);
 
@@ -28,6 +35,12 @@ function ContactRow({ friendship }: { friendship: FriendshipPublic }) {
   const otherName =
     friendship.requester_id === me?.id ? friendship.addressee_username : friendship.requester_username;
   const presence = usePresence(otherId);
+
+  const handleSendMessage = async () => {
+    setShowMenu(false);
+    const room = await personalRoom.mutateAsync(otherId);
+    onOpenDm(room.id);
+  };
 
   const handleBan = async () => {
     await banUser.mutateAsync(otherId);
@@ -55,8 +68,12 @@ function ContactRow({ friendship }: { friendship: FriendshipPublic }) {
 
       {showMenu && (
         <div className="absolute right-0 top-8 z-10 bg-white border border-gray-200 rounded-md shadow-lg py-1 w-40">
-          <button className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50">
-            Send message
+          <button
+            onClick={handleSendMessage}
+            disabled={personalRoom.isPending}
+            className="w-full text-left px-3 py-1.5 text-sm hover:bg-gray-50 disabled:opacity-50"
+          >
+            {personalRoom.isPending ? "Opening…" : "Send message"}
           </button>
           <button
             onClick={() => { removeFriend.mutate(friendship.id); setShowMenu(false); }}
@@ -368,7 +385,9 @@ function Sidebar({ activeRoomId, onRoomSelect }: SidebarProps) {
           ) : friends.length === 0 ? (
             <p className="text-xs text-gray-400 px-2 py-1">No contacts yet</p>
           ) : (
-            friends.map((f) => <ContactRow key={f.id} friendship={f} />)
+            friends.map((f) => (
+              <ContactRow key={f.id} friendship={f} onOpenDm={onRoomSelect} />
+            ))
           )}
         </div>
 
