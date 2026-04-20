@@ -7,8 +7,9 @@ from sqlmodel import select
 
 from app.api.deps import CookieCurrentUser, SessionDep
 from app.core.presence import presence_manager
+from app.core.social import ban_between
 from app.models.message import Attachment, Message
-from app.models.room import RoomMember
+from app.models.room import MemberRole, Room, RoomMember
 from app.models.user import User
 from app.schemas.message import (
     AttachmentPublic,
@@ -117,6 +118,17 @@ async def send_message(
     if not _get_membership(session, room_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member of this room")
 
+    room = session.get(Room, room_id)
+    if room and room.is_personal:
+        other_ids = [
+            uid for uid in _room_member_ids(session, room_id) if uid != current_user.id
+        ]
+        if other_ids and ban_between(session, current_user.id, other_ids[0]):
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot send messages: user ban in effect",
+            )
+
     message = Message(
         room_id=room_id,
         author_id=current_user.id,
@@ -168,6 +180,17 @@ async def edit_message(
     if message.author_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only the author can edit this message")
 
+    room = session.get(Room, room_id)
+    if room and room.is_personal:
+        other_ids = [
+            uid for uid in _room_member_ids(session, room_id) if uid != current_user.id
+        ]
+        if other_ids and ban_between(session, current_user.id, other_ids[0]):
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot edit messages: user ban in effect",
+            )
+
     message.content = msg.content
     message.edited_at = datetime.now(timezone.utc)
     session.add(message)
@@ -194,8 +217,17 @@ async def delete_message(
     message = session.get(Message, message_id)
     if not message or message.room_id != room_id:
         raise HTTPException(status_code=404, detail="Message not found")
+
     if message.author_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the author can delete this message")
+        membership = _get_membership(session, room_id, current_user.id)
+        if not membership or membership.role not in (
+            MemberRole.owner.value,
+            MemberRole.admin.value,
+        ):
+            raise HTTPException(
+                status_code=403,
+                detail="Only the author or a room admin can delete this message",
+            )
 
     message.deleted_at = datetime.now(timezone.utc)
     message.content = ""

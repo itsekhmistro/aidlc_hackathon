@@ -197,6 +197,77 @@ def test_delete_message_by_non_author_returns_403(client: TestClient):
     assert r.status_code == 403
 
 
+def test_delete_message_by_room_owner_returns_204(client: TestClient):
+    """Room owner can delete another user's message (spec 06.4)."""
+    _auth(client, "ownerdel1")
+    room = _create_room(client, "owner-del-room")
+
+    # Another user joins and posts a message.
+    client.cookies.clear()
+    _auth(client, "memberdel1")
+    r_join = client.post(f"/api/rooms/{room['id']}/join")
+    assert r_join.status_code in (200, 204), r_join.text
+    msg = _send_message(client, room["id"], "member's message")
+
+    # Owner deletes the member's message.
+    client.cookies.clear()
+    _login(client, "ownerdel1")
+    r = client.delete(f"/api/rooms/{room['id']}/messages/{msg['id']}")
+    assert r.status_code == 204, r.text
+
+    # Verify message is soft-deleted.
+    r_list = client.get(f"/api/rooms/{room['id']}/messages")
+    msgs = r_list.json()["messages"]
+    assert len(msgs) == 1
+    assert msgs[0]["deleted"] is True
+    assert msgs[0]["content"] == ""
+
+
+def test_delete_message_by_room_admin_returns_204(client: TestClient):
+    """Room admin can delete another user's message (spec 06.4)."""
+    _auth(client, "ownerdel2")
+    room = _create_room(client, "admin-del-room")
+
+    # Promote a second user to admin.
+    client.cookies.clear()
+    _auth(client, "admindel2")
+    admin_id = client.get("/api/auth/me").json()["id"]
+    r_join = client.post(f"/api/rooms/{room['id']}/join")
+    assert r_join.status_code in (200, 204), r_join.text
+
+    client.cookies.clear()
+    _login(client, "ownerdel2")
+    r_grant = client.post(f"/api/rooms/{room['id']}/members/{admin_id}/admin")
+    assert r_grant.status_code == 204, r_grant.text
+
+    # A regular member joins and posts a message.
+    client.cookies.clear()
+    _auth(client, "memberdel2")
+    client.post(f"/api/rooms/{room['id']}/join")
+    msg = _send_message(client, room["id"], "message from member")
+
+    # Admin deletes the regular member's message.
+    client.cookies.clear()
+    _login(client, "admindel2")
+    r = client.delete(f"/api/rooms/{room['id']}/messages/{msg['id']}")
+    assert r.status_code == 204, r.text
+
+
+def test_delete_message_by_regular_member_returns_403(client: TestClient):
+    """Regular member cannot delete another user's message (spec 06.4)."""
+    _auth(client, "ownerdel3")
+    room = _create_room(client, "member-del-403-room")
+    msg = _send_message(client, room["id"], "owner's message")
+
+    client.cookies.clear()
+    _auth(client, "memberdel3")
+    client.post(f"/api/rooms/{room['id']}/join")
+
+    r = client.delete(f"/api/rooms/{room['id']}/messages/{msg['id']}")
+    assert r.status_code == 403, r.text
+    assert "admin" in r.json()["detail"].lower()
+
+
 def test_delete_message_not_found_returns_404(client: TestClient):
     _auth(client, "msgowner12")
     room = _create_room(client, "del-msg-404-room")

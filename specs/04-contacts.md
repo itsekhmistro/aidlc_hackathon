@@ -90,8 +90,8 @@ def can_message(sender_id, recipient_id) -> bool:
 - [x] Send friend request by username; recipient sees it in real-time (WS event)
 - [x] Accept/decline request works; friend appears in contacts list immediately
 - [x] Remove friend removes them from contacts list for both users
-- [ ] Banning a user: friendship terminated, personal room becomes read-only for both
-- [ ] Banned user cannot send new messages in personal room (403)
+- [x] Banning a user: friendship terminated, personal room becomes read-only for both
+- [x] Banned user cannot send new messages in personal room (403)
 - [x] Existing personal message history still visible after ban
 - [x] Friend request includes optional message
 - [x] Cannot send friend request to someone who has banned you
