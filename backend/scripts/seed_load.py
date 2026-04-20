@@ -40,7 +40,7 @@ from app.core.db import engine
 from app.core.security import create_session_token, get_password_hash
 from app.models.message import Message
 from app.models.room import MemberRole, Room, RoomMember, RoomVisibility
-from app.models.user import User, UserSession
+from app.models.user import Presence, User, UserSession
 
 log = logging.getLogger("seed_load")
 
@@ -145,6 +145,7 @@ def reset_loadtest(session: Session) -> None:
             delete(Message).where(Message.author_id.in_(loadtest_user_ids))  # type: ignore[attr-defined]
         )
         session.execute(delete(UserSession).where(UserSession.user_id.in_(loadtest_user_ids)))  # type: ignore[attr-defined]
+        session.execute(delete(Presence).where(Presence.user_id.in_(loadtest_user_ids)))  # type: ignore[attr-defined]
         session.execute(
             delete(Friendship).where(
                 Friendship.requester_id.in_(loadtest_user_ids)  # type: ignore[attr-defined]

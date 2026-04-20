@@ -402,7 +402,7 @@ class FanoutPublisher(WSClientMixin, HttpUser):
     # constant_throughput(2) → 2 tasks/sec, matching the spec's 2 msg/s.
     wait_time = constant_throughput(2)
     latency_name = "e2e:fanout_publish"
-    weight = 1
+    fixed_count = 1  # exactly one publisher no matter the -u total
 
     def on_start(self) -> None:  # type: ignore[override]
         super().on_start()
@@ -442,7 +442,7 @@ class PresenceToggler(WSClientMixin, HttpUser):
 
     wait_time = between(10, 10)
     latency_name = "e2e:presence_toggle"
-    weight = 1
+    fixed_count = 1  # exactly one toggler
 
     def on_start(self) -> None:  # type: ignore[override]
         super().on_start()
