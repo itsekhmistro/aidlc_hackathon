@@ -43,13 +43,26 @@
   Playwright totals: 9 passing / 0 failing (two consecutive runs, no flakes)
 
   ---
-  Final verification (2026-04-20)
+  Wave 1 — shipped (pre-demo hardening, 2026-04-20 PM)
 
-  - Backend: 173 pytest passing (172 Wave A/B + 2 new `is_current` tests, 1 pre-existing skip)
-  - Frontend: 98 vitest passing / 0 failing · 0 TypeScript errors · clean Vite build
-  - E2E: 9 Playwright specs passing (5 pre-existing + 4 new)
-  - Schema: migration auto-applied on container boot; uploads persist across `docker compose down`
-  - All architect findings resolved or deferred; no open 🔴 blockers
+  - W1.1 Message hover actions: Edit / Delete / Reply + reply-preview quoted block (`MessageBubble`, `MessageInput`, `MessageThread`); edit in-place textarea; inline delete confirm
+  - W1.2 Browser tab title unread count: `useTotalUnread` hook + `document.title = "(N) Chat"` effect, capped at `99+`
+  - W1.4 Ban-kick Playwright spec: A bans B mid-DM → B auto-navigates to `/chat`
+  - W1.5 README rewrite: quick-start for Docker + local, SECRET_KEY caveat, test commands, specs pointer
+
+  Verified paths during W1.4: `POST /api/bans`, `PATCH /api/friends/:id/accept` (corrected from initial guesses)
+
+  W1.3 deferred-style smoke (non-destructive): `docker compose up -d --build --force-recreate backend frontend` with volumes preserved — new images boot cleanly, alembic runs idempotently (a1b2c3d4e5f6 → head), 10/10 Playwright green.
+
+  ---
+  Final verification (2026-04-20, end of Wave 1)
+
+  - Backend: 174 pytest (172 Wave A/B + 2 `is_current`, 1 pre-existing skip)
+  - Frontend: 103 vitest / 0 failing · 0 TypeScript errors · clean Vite build
+  - E2E: 10 Playwright specs passing (5 pre-existing + 4 from Wave C + 1 ban-kick); verified twice on parallel-worker runs, no flakes
+  - Schema: migration auto-applies on boot (idempotent); uploads persist across container recreate
+  - Architect Wave-1 plan items 1/2/4/5 complete; item 3 delivered via non-destructive alternative
+  - No open 🔴 blockers for 2026-04-21 demo
 
   ---
   Deferred (post-demo)
