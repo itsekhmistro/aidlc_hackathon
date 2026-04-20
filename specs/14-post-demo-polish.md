@@ -1,6 +1,6 @@
 # TASK-14 — Post-demo polish (deferred items from Wave C)
 
-Status: in progress (2026-04-20)
+Status: **completed** (2026-04-20) — all four items shipped on `greenbase` (commit `9fb8947`). See `specs/current-state.md` for the roll-up.
 
 After Wave C shipped demo-readiness, four gaps were recorded as non-blocking. This spec tracks their implementation.
 
