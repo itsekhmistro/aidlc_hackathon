@@ -1,6 +1,6 @@
-  Current state: TASK-02 through TASK-09 + TASK-14 + Wave 1 complete ✅ · Demo-ready
+  Current state: TASK-02 through TASK-11 + TASK-14 + Wave 1 complete ✅ · Demo-ready
 
-  174 backend pytest · 103 frontend vitest · 10 Playwright e2e specs · 0 TS errors
+  184 backend pytest · 116 frontend vitest · 11 Playwright e2e specs · 0 TS errors
 
   Demo: 2026-04-21 (tomorrow).
 
@@ -86,32 +86,77 @@
   - Quick-start (Docker + local), `SECRET_KEY` localhost-only caveat, test-run commands, agent/spec pointers
 
   ---
+  Wave 2A — shipped (TASK-11 WebSocket protocol gaps · commit `087779a`)
+
+  11.1 — `session.revoked` emit + frontend handler
+  - `sessions.py::revoke_session` is now `async`; emits `{"type":"session.revoked","session_id":…}` via `presence_manager.send_to_user(current_user.id, …)` after commit. Fans out to all tabs of the revoking user.
+  - `frontend/src/lib/sessionRevoked.ts`: pure helper that probes `/api/auth/me`. 401 → clears `["me"]` cache + `navigate("/login", {replace:true})`; 200 → invalidates `["sessions"]`.
+  - `App.tsx::handleMessage` dispatches `session.revoked` events to the helper.
+
+  11.2 — Idle-connection reap after 90s
+  - `ws.py`: module constant `IDLE_TIMEOUT = 90`; `asyncio.wait_for(websocket.receive_json(), timeout=IDLE_TIMEOUT)` inside the recv loop. `except asyncio.TimeoutError` → `websocket.close(code=4000)`. Any recv (ping, heartbeat) resets the window.
+
+  11.3 — Fixed two silent wire-format bugs uncovered by the audit
+  - `friends.py:124`: event renamed `friend.request_accepted` → `friend.accepted` (frontend handler had been matching the new name and never firing).
+  - `user_bans.py:47-53`: `user.banned` payload now carries both `banner_id` AND `banned_id` (was missing the latter).
+
+  11.4 — New tests (+7 pytest, +2 vitest)
+  - `test_sessions.py`: happy-path emit, multi-tab fanout, owner-only target (spy on `send_to_user`)
+  - `test_ws_idle.py`: close after idle; ping resets the timer
+  - `test_friends.py`: `friend.accepted` rename regression guard
+  - `test_user_bans.py`: payload contains both ids
+  - `__tests__/sessionRevoked.test.ts`: 401 kick + 200 refresh
+
+  ---
+  Wave 2B — shipped (TASK-10 Admin & Moderation UI · commit `967bffb`)
+
+  10.1 — Backend
+  - `DELETE /api/rooms/{room_id}/invitations/{invitation_id}` — admin-only cancel, 404 when missing or already accepted. No WS broadcast; frontend refetches invitation list on mutate.
+  - Existing moderation routes (grant/remove admin, ban/unban, invite, update, delete) already in place from TASK-05; only the cancel endpoint was missing.
+
+  10.2 — Frontend (shadcn init + component tree)
+  - `npx shadcn@latest init` + `add tabs dialog dropdown-menu button input label`; `@/*` alias wired into `vite.config.ts`.
+  - New `hooks/useAdmin.ts`: `useRoomBans`, `useRoomInvitations` + 8 mutations (`useGrantAdmin`, `useRemoveAdmin`, `useBanMember`, `useUnbanMember`, `useInviteUser`, `useCancelInvitation`, `useUpdateRoom`, `useDeleteRoom`).
+  - New `components/ManageRoomModal.tsx` with 4 tabs (Members, Banned, Invitations, Settings); uses `@base-ui/react/tabs` via shadcn `ui/tabs`.
+  - Role gating derived once from `useRoomMembers` + `useCurrentUser`; passed to tabs as `myRole` prop. Owner = all; admin = ban non-admins + invite; member = no Manage button at all.
+  - New `components/ConfirmModal.tsx` (reusable); Settings tab has type-to-confirm delete flow inline.
+  - `SidebarRight.tsx`: role-gated "Manage" button renders only for owner/admin.
+
+  10.3 — Tests (+3 pytest, +11 vitest, +1 Playwright)
+  - `test_rooms.py`: cancel-invitation happy path, 403 non-admin, 404 missing/accepted
+  - `__tests__/useAdmin.test.ts`: all 10 hooks covered (query + mutation + cache invalidation)
+  - `e2e/admin.spec.ts`: owner creates room, member joins, owner opens Manage → bans member → member disappears from Members tab → appears in Banned tab → unban → list empty
+
+  ---
   Demo-script confidence (5-step happy path)
 
   1. Register + login → `e2e/auth.spec.ts` (×3)
   2. Create + join room → `e2e/rooms.spec.ts` (×2)
   3. Send message + attachment → `e2e/attachments.spec.ts` (text file asserted; image preview falls through to the same text-link rendering)
   4. Unread badge → `e2e/unread.spec.ts` (two browser contexts, appear + clear)
-  5. DM open + ban-kick → `e2e/dm.spec.ts` + `e2e/ban-kick.spec.ts`
+  5. DM open + ban-kick + admin moderation → `e2e/dm.spec.ts` + `e2e/ban-kick.spec.ts` + `e2e/admin.spec.ts`
 
   Smoke coverage: `e2e/smoke.spec.ts` walks `/chat`, `/rooms`, `/sessions`, `/profile` — no uncaught console errors, exactly one "Current session" pill.
 
   ---
-  Final verification (2026-04-20)
+  Final verification (2026-04-20, post-Wave-2)
 
-  - Backend: 174 pytest passing (1 pre-existing skip)
-  - Frontend: 103 vitest passing · 0 TypeScript errors · clean Vite build
-  - E2E: 10 Playwright specs passing (verified across multiple full-suite runs, no flakes since ban-kick's 8s timeout bump)
+  - Backend: 184 pytest passing (1 pre-existing skip)
+  - Frontend: 116 vitest passing · 0 TypeScript errors · clean Vite build (shadcn deps resolve via `@/*` alias)
+  - E2E: 11 Playwright specs passing (including new `admin.spec.ts`)
   - Migration auto-applies on container boot (idempotent); uploads persist across `force-recreate`
+  - Frontend image rebuilt post-shadcn-install (adds `@base-ui/react`, `class-variance-authority`, `tw-animate-css`, `@fontsource-variable/geist`)
   - No open 🔴 blockers
+
+  Branch: `greenbase` · last commits: `967bffb` (TASK-10), `087779a` (TASK-11)
 
   ---
   Deferred (post-demo)
 
   - 🟡 Inline image preview for attachments — `MessageBubble.tsx` currently renders every attachment as a text link; distinguish image MIME types and render `<img>` inline (≤20 min)
   - 🟡 Reply round-trip Playwright coverage — UI and backend wiring verified manually; no e2e asserts the reply-preview bubble renders after round-trip (≤20 min)
-  - 🟡 Room admin / moderation UI — `specs/10-admin-ui.md`: Manage Room modal (members, admins, banned, invite by username, delete). Backend endpoints all exist; frontend unshipped. Scope-out of demo narration
+  - 🟡 Member context menu (⋮) in `SidebarRight` — spec 10 wireframe called for right-click/⋮ on member rows with Send message / Make admin / Ban / Send friend request. Current shipping uses the Members tab in Manage Room modal for admin actions; a context menu on sidebar rows would be faster but adds surface area. Skipped for demo scope
+  - 🟡 `room.invitation_cancelled` WS event — currently admin cancel is local-refetch only; invitee's "pending invitation" banner stays live until they refresh or click-through. Cosmetic at demo scale
   - 🟡 `message.new` cache invalidation is per-room refetch — replace with surgical cache updates for perf under load
-  - 🟢 `session.revoked` WS emit on DELETE `/api/sessions/:id` — revoked tab stays live until next 401
   - 🟢 Sidebar accordion collapse on active room (`specs/09-frontend-layout.md`)
   - ⬜ Jabber / XMPP federation (`specs/13-jabber.md`) — advanced scope, not targeted for this hackathon
