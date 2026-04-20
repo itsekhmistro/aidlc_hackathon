@@ -15,6 +15,11 @@ dist/
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
+
+# Playwright
+test-results/
+playwright-report/
 
 # Docker
 postgres_data/
