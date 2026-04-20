@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); mkdir -p /Users/itsekhmistro/data/its/hackathon/.agents-history; ts=$(date +%Y%m%d-%H%M%S); subagent=$(echo \"$input\" | jq -r '.tool_input.subagent_type // \"agent\"'); echo \"$input\" | jq -r '.tool_input.prompt' > \"/Users/itsekhmistro/data/its/hackathon/.agents-history/${ts}-${subagent}.txt\"",
+            "statusMessage": "Logging agent prompt..."
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import select
 
-from app.api.deps import CurrentUser, SessionDep, get_current_active_superuser
+from app.api.deps import CurrentUser, SessionDep
 from app.core.security import get_password_hash
-from app.models.user import User, UserCreate, UserPublic, UsersPublic, UserUpdate
+from app.models.user import User
+from app.schemas.user import UserPublic, UserUpdate
 
 router = APIRouter()
 
@@ -27,31 +28,3 @@ def update_user_me(session: SessionDep, user_in: UserUpdate, current_user: Curre
     session.commit()
     session.refresh(current_user)
     return current_user
-
-
-@router.post("/users/", response_model=UserPublic)
-def create_user(session: SessionDep, user_in: UserCreate) -> User:
-    existing = session.exec(select(User).where(User.email == user_in.email)).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    user = User(
-        email=user_in.email,
-        full_name=user_in.full_name,
-        is_active=user_in.is_active,
-        is_superuser=user_in.is_superuser,
-        hashed_password=get_password_hash(user_in.password),
-    )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    return user
-
-
-@router.get(
-    "/users/",
-    response_model=UsersPublic,
-    dependencies=[Depends(get_current_active_superuser)],
-)
-def read_users(session: SessionDep, skip: int = 0, limit: int = 100) -> UsersPublic:
-    users = session.exec(select(User).offset(skip).limit(limit)).all()
-    return UsersPublic(data=list(users), count=len(users))

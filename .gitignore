@@ -27,3 +27,6 @@ postgres_data/
 # OS
 .DS_Store
 Thumbs.db
+
+# Agent logs (local only)
+.agents-history/

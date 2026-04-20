@@ -8,8 +8,9 @@ from sqlmodel import select
 from app.api.deps import CurrentUser, SessionDep
 from app.core.config import settings
 from app.core.security import create_access_token, verify_password
-from app.models.user import User, UserPublic
+from app.models.user import User
 from app.schemas.token import Token
+from app.schemas.user import UserPublic
 
 router = APIRouter()
 
@@ -22,8 +23,8 @@ def login_access_token(
     user = session.exec(select(User).where(User.email == form_data.username)).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect email or password")
-    if not user.is_active:
-        raise HTTPException(status_code=400, detail="Inactive user")
+    if user.deleted_at is not None:
+        raise HTTPException(status_code=400, detail="Account deleted")
     return Token(
         access_token=create_access_token(
             str(user.id),

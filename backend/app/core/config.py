@@ -25,5 +25,9 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "changeme-use-a-real-secret-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7
 
+    UPLOAD_DIR: str = "/uploads"
+    MAX_FILE_SIZE_BYTES: int = 20 * 1024 * 1024   # 20 MB
+    MAX_IMAGE_SIZE_BYTES: int = 3 * 1024 * 1024   # 3 MB
+
 
 settings = Settings()

@@ -59,7 +59,7 @@ hackathon/
 
 ## Agents
 
-Five pre-built slash commands for agentic development:
+Six pre-built slash commands for agentic development:
 
 | Command | Role | When to use |
 |---|---|---|
@@ -68,12 +68,14 @@ Five pre-built slash commands for agentic development:
 | `/backend` | FastAPI expert | Implement routes, WebSocket handlers, DB models |
 | `/frontend` | React expert | Implement components, hooks, WebSocket client |
 | `/docker` | Infra expert | Wire services, fix compose, Dockerfiles |
+| `/qa` | QA & test automation | Review implementations, write unit + e2e tests, report corrections |
 
 **Recommended flow:**
 1. Paste the task to `/lead` — it produces a plan
 2. Run `/architect` to produce schemas and contracts
 3. Run `/backend` and `/frontend` in parallel
 4. Run `/docker` to wire everything up
+5. Run `/qa` to review and test — it will request corrections from `/backend` or `/frontend` if needed
 
 ## WebSocket Architecture
 

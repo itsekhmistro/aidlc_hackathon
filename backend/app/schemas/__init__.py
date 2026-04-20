@@ -1,0 +1,63 @@
+from app.schemas.message import (
+    AttachmentPublic,
+    MessageCreate,
+    MessagePage,
+    MessagePublic,
+    MessageUpdate,
+    UnreadCountsPublic,
+)
+from app.schemas.room import (
+    AdminActionRequest,
+    InviteUserRequest,
+    RoomBanPublic,
+    RoomCreate,
+    RoomInvitationPublic,
+    RoomMemberPublic,
+    RoomPublic,
+    RoomUpdate,
+)
+from app.schemas.social import (
+    FriendRequestCreate,
+    FriendshipPublic,
+    PresenceBulkRequest,
+    PresenceBulkResponse,
+)
+from app.schemas.user import (
+    LoginRequest,
+    PasswordChange,
+    PasswordReset,
+    PasswordResetRequest,
+    SessionPublic,
+    UserCreate,
+    UserPublic,
+    UserUpdate,
+)
+
+__all__ = [
+    "UserPublic",
+    "UserCreate",
+    "UserUpdate",
+    "SessionPublic",
+    "LoginRequest",
+    "PasswordResetRequest",
+    "PasswordReset",
+    "PasswordChange",
+    "RoomPublic",
+    "RoomCreate",
+    "RoomUpdate",
+    "RoomMemberPublic",
+    "RoomBanPublic",
+    "RoomInvitationPublic",
+    "InviteUserRequest",
+    "AdminActionRequest",
+    "MessagePublic",
+    "MessageCreate",
+    "MessageUpdate",
+    "MessagePage",
+    "AttachmentPublic",
+    "UnreadCountsPublic",
+    "FriendshipPublic",
+    "FriendRequestCreate",
+    "PresenceBulkRequest",
+    "PresenceBulkResponse",
+]

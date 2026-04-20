@@ -5,12 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
-from app.core.db import create_db_and_tables
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    create_db_and_tables()
+    # DB tables are managed by Alembic migrations.
+    # Run: uv run alembic upgrade head
     yield
 
 
