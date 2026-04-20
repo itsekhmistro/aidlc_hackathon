@@ -30,3 +30,14 @@ export function useUnreadCount(roomId: string): number {
     () => store.get(roomId) ?? 0,
   );
 }
+
+export function useTotalUnread(): number {
+  return useSyncExternalStore(
+    (cb) => { listeners.add(cb); return () => { listeners.delete(cb); }; },
+    () => {
+      let total = 0;
+      for (const n of store.values()) total += n;
+      return total;
+    },
+  );
+}

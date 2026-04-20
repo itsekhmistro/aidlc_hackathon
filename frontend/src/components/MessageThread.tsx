@@ -1,8 +1,13 @@
-import { useEffect, useRef } from "react";
-import { useMessages, useSendMessage } from "../hooks/useMessages";
+import { useEffect, useRef, useState } from "react";
+import {
+  useDeleteMessage,
+  useEditMessage,
+  useMessages,
+  useSendMessage,
+} from "../hooks/useMessages";
 import MessageBubble from "./MessageBubble";
 import MessageInput from "./MessageInput";
-import type { RoomPublic } from "../lib/types";
+import type { MessagePublic, RoomPublic } from "../lib/types";
 
 interface Props {
   room: RoomPublic;
@@ -12,7 +17,10 @@ interface Props {
 export default function MessageThread({ room, currentUserId }: Props) {
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useMessages(room.id);
   const sendMessage = useSendMessage(room.id);
+  const editMessage = useEditMessage(room.id);
+  const deleteMessage = useDeleteMessage(room.id);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [replyTo, setReplyTo] = useState<MessagePublic | null>(null);
 
   // All messages in chronological order (pages are newest-first from cursor, so reverse)
   const messages = data?.pages
@@ -46,7 +54,16 @@ export default function MessageThread({ room, currentUserId }: Props) {
           </button>
         )}
         {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} isOwn={msg.author_id === currentUserId} />
+          <MessageBubble
+            key={msg.id}
+            message={msg}
+            isOwn={msg.author_id === currentUserId}
+            onReply={(m) => setReplyTo(m)}
+            onEdit={(m, newContent) =>
+              editMessage.mutate({ messageId: m.id, content: newContent })
+            }
+            onDelete={(m) => deleteMessage.mutate(m.id)}
+          />
         ))}
         <div ref={bottomRef} />
       </div>
@@ -54,9 +71,16 @@ export default function MessageThread({ room, currentUserId }: Props) {
       {/* Input */}
       <MessageInput
         roomId={room.id}
-        onSend={(content, attachmentIds) =>
-          sendMessage.mutate({ content, attachment_ids: attachmentIds })
-        }
+        replyTo={replyTo}
+        onCancelReply={() => setReplyTo(null)}
+        onSend={(content, attachmentIds, replyToId) => {
+          sendMessage.mutate({
+            content,
+            attachment_ids: attachmentIds,
+            reply_to_id: replyToId ?? null,
+          });
+          setReplyTo(null);
+        }}
         disabled={sendMessage.isPending}
       />
     </div>

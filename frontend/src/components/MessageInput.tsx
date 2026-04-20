@@ -1,11 +1,13 @@
 import { useState, useRef } from "react";
 import { api } from "../lib/api";
-import type { AttachmentPublic } from "../lib/types";
+import type { AttachmentPublic, MessagePublic } from "../lib/types";
 
 interface Props {
   roomId: string;
-  onSend: (content: string, attachmentIds: string[]) => void;
+  onSend: (content: string, attachmentIds: string[], replyToId?: string | null) => void;
   disabled?: boolean;
+  replyTo?: MessagePublic | null;
+  onCancelReply?: () => void;
 }
 
 interface PendingFile {
@@ -15,7 +17,7 @@ interface PendingFile {
   error?: string;
 }
 
-export default function MessageInput({ roomId, onSend, disabled }: Props) {
+export default function MessageInput({ roomId, onSend, disabled, replyTo, onCancelReply }: Props) {
   const [value, setValue] = useState("");
   const [pending, setPending] = useState<PendingFile[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -73,7 +75,7 @@ export default function MessageInput({ roomId, onSend, disabled }: Props) {
 
     if (!trimmed && completedIds.length === 0) return;
 
-    onSend(trimmed, completedIds);
+    onSend(trimmed, completedIds, replyTo?.id ?? null);
     setValue("");
     setPending([]);
   };
@@ -90,6 +92,25 @@ export default function MessageInput({ roomId, onSend, disabled }: Props) {
 
   return (
     <div className="border-t">
+      {replyTo && (
+        <div
+          className="flex items-start gap-2 px-3 pt-2 pb-1 bg-gray-50 border-b border-gray-200 text-xs"
+          data-testid="reply-strip"
+        >
+          <span className="text-gray-500 shrink-0">↩ Replying to</span>
+          <span className="font-semibold text-gray-700 shrink-0">{replyTo.author_username}:</span>
+          <span className="text-gray-600 truncate flex-1">{replyTo.content}</span>
+          <button
+            type="button"
+            onClick={onCancelReply}
+            className="text-gray-400 hover:text-gray-700 shrink-0"
+            aria-label="Cancel reply"
+            title="Cancel reply"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       {pending.length > 0 && (
         <div className="flex flex-wrap gap-1 px-3 pb-1 pt-2">
           {pending.map((p) => (

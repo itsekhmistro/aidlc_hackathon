@@ -22,7 +22,7 @@ describe("MessageInput", () => {
     await userEvent.keyboard("{Enter}");
 
     expect(onSend).toHaveBeenCalledOnce();
-    expect(onSend).toHaveBeenCalledWith("Hello World", []);
+    expect(onSend).toHaveBeenCalledWith("Hello World", [], null);
     // Input should be cleared after sending
     expect(textarea).toHaveValue("");
   });

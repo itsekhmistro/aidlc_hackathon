@@ -7,7 +7,7 @@ import { useActivityTracker } from "./hooks/useActivityTracker";
 import { useCurrentUser } from "./hooks/useAuth";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { setBulkPresence, setPresence } from "./lib/presenceStore";
-import { setUnreadCounts, incrementUnread, clearUnread } from "./lib/unreadStore";
+import { setUnreadCounts, incrementUnread, clearUnread, useTotalUnread } from "./lib/unreadStore";
 import { api } from "./lib/api";
 import type { ClientEvent, RoomMemberPublic, ServerEvent, UnreadCountsPublic } from "./lib/types";
 import ChatEmpty from "./pages/ChatEmpty";
@@ -107,6 +107,12 @@ function AppWebSocket() {
     if (!me) return;
     api.get<UnreadCountsPublic>("/api/unread").then((data) => setUnreadCounts(data.counts)).catch(() => {});
   }, [me?.id]);
+
+  // Mirror total unread count into the browser tab title
+  const totalUnread = useTotalUnread();
+  useEffect(() => {
+    document.title = totalUnread > 0 ? `(${totalUnread > 99 ? "99+" : totalUnread}) Chat` : "Chat";
+  }, [totalUnread]);
 
   return null;
 }

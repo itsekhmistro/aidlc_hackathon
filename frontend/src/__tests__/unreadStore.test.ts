@@ -4,6 +4,7 @@ import {
   clearUnread,
   incrementUnread,
   setUnreadCounts,
+  useTotalUnread,
   useUnreadCount,
 } from "../lib/unreadStore";
 
@@ -126,5 +127,27 @@ describe("unreadStore", () => {
     });
     expect(a.result.current).toBe(2);
     expect(b.result.current).toBe(1);
+  });
+
+  describe("useTotalUnread", () => {
+    it("sums counts across all rooms and updates on change", () => {
+      // Reset any leaked state from prior tests by zeroing every known key
+      act(() => {
+        setUnreadCounts({ "room-a": 0, "room-b": 0, "room-c": 0, "room-d": 0, "fresh-room": 0, "unknown-room": 0 });
+      });
+      const { result } = renderHook(() => useTotalUnread());
+      act(() => {
+        setUnreadCounts({ "room-a": 3, "room-b": 4 });
+      });
+      expect(result.current).toBe(7);
+      act(() => {
+        incrementUnread("room-a");
+      });
+      expect(result.current).toBe(8);
+      act(() => {
+        clearUnread("room-a");
+      });
+      expect(result.current).toBe(4);
+    });
   });
 });
