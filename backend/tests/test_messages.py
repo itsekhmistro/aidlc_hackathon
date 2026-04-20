@@ -278,3 +278,81 @@ def test_delete_message_not_found_returns_404(client: TestClient):
 def test_delete_message_unauthenticated_returns_401(client: TestClient):
     r = client.delete(f"/api/rooms/{uuid.uuid4()}/messages/{uuid.uuid4()}")
     assert r.status_code == 401
+
+
+# ─── scope guards for TASK-04/06 gap fixes ───────────────────────────────────
+
+
+def test_post_in_public_room_not_blocked_by_user_ban(client: TestClient):
+    """User-ban enforcement is scoped to personal rooms; a public room
+    containing both banner and banned must still accept messages from both
+    sides. Guards against the ban check being accidentally widened."""
+    # Owner creates a public room.
+    _auth(client, "pubowner")
+    room = _create_room(client, "pub-ban-scope-room")
+    room_id = room["id"]
+
+    # Second user joins.
+    client.cookies.clear()
+    _auth(client, "pubmember")
+    pubmember_id = client.get("/api/auth/me").json()["id"]
+    r_join = client.post(f"/api/rooms/{room_id}/join")
+    assert r_join.status_code in (200, 204), r_join.text
+
+    # pubmember bans pubowner.
+    owner_id = None
+    client.cookies.clear()
+    _login(client, "pubowner")
+    owner_id = client.get("/api/auth/me").json()["id"]
+
+    client.cookies.clear()
+    _login(client, "pubmember")
+    r_ban = client.post("/api/bans", json={"banned_id": owner_id})
+    assert r_ban.status_code == 201, r_ban.text
+
+    # Despite the ban, pubmember can still post in the PUBLIC room.
+    r_post = client.post(f"/api/rooms/{room_id}/messages", json={"content": "hello public"})
+    assert r_post.status_code == 201, r_post.text
+
+    # And pubowner can still post there too.
+    client.cookies.clear()
+    _login(client, "pubowner")
+    r_post_owner = client.post(f"/api/rooms/{room_id}/messages", json={"content": "hi back"})
+    assert r_post_owner.status_code == 201, r_post_owner.text
+    _ = pubmember_id  # silence unused
+
+
+def test_admin_role_is_per_room_cannot_delete_in_other_room(client: TestClient):
+    """Admin role is granted per-room. A user who is admin in room X must
+    NOT be able to delete messages in room Y where they are a regular
+    member. Guards against the delete authorization check looking up the
+    role globally instead of scoping it to the target room."""
+    # User 1 owns room X and promotes user 2 to admin there.
+    _auth(client, "ownerX")
+    room_x = _create_room(client, "scope-room-x")
+
+    client.cookies.clear()
+    _auth(client, "adminInX")
+    admin_in_x_id = client.get("/api/auth/me").json()["id"]
+    client.post(f"/api/rooms/{room_x['id']}/join")
+
+    client.cookies.clear()
+    _login(client, "ownerX")
+    r_grant = client.post(f"/api/rooms/{room_x['id']}/members/{admin_in_x_id}/admin")
+    assert r_grant.status_code == 204, r_grant.text
+
+    # Separate owner creates room Y; adminInX joins as a plain member.
+    client.cookies.clear()
+    _auth(client, "ownerY")
+    room_y = _create_room(client, "scope-room-y")
+    msg_y = _send_message(client, room_y["id"], "ownerY's message in Y")
+
+    client.cookies.clear()
+    _login(client, "adminInX")
+    r_join_y = client.post(f"/api/rooms/{room_y['id']}/join")
+    assert r_join_y.status_code in (200, 204), r_join_y.text
+
+    # adminInX (regular member in room Y) cannot delete ownerY's message.
+    r_del = client.delete(f"/api/rooms/{room_y['id']}/messages/{msg_y['id']}")
+    assert r_del.status_code == 403, r_del.text
+    assert "admin" in r_del.json()["detail"].lower()
