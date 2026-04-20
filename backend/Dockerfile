@@ -13,4 +13,4 @@ COPY alembic.ini ./alembic.ini
 
 ENV PYTHONPATH=/app
 
-CMD ["sh", "-c", "uv run alembic upgrade head && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "uv run alembic upgrade head && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --ws-ping-interval 20 --ws-ping-timeout 30"]
