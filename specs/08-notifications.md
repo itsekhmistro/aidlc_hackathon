@@ -103,10 +103,10 @@ type UnreadStore = Map<string, number>;  // roomId → unread count
 
 ## Acceptance Criteria
 
-- [ ] Receive message while in another room → unread badge appears on that room
-- [ ] Click on room → badge disappears; `mark-read` call made
-- [ ] Multiple tabs: open room in tab A → badge clears in tab B as well
-- [ ] Own messages do not count as unread for the sender
-- [ ] Unread persists across page reload (backed by DB `ReadReceipt`)
-- [ ] Badge caps at 99+
-- [ ] Browser tab title shows total unread count
+- [x] Receive message while in another room → unread badge appears on that room
+- [x] Click on room → badge disappears; `mark-read` call made
+- [x] Multiple tabs: open room in tab A → badge clears in tab B as well
+- [ ] Own messages do not count as unread for the sender  <!-- PARTIAL: WS `unread.increment` excludes author, but GET /api/unread query omits `author_id != :user_id` filter (unread.py:18-42) -->
+- [x] Unread persists across page reload (backed by DB `ReadReceipt`)
+- [x] Badge caps at 99+
+- [x] Browser tab title shows total unread count

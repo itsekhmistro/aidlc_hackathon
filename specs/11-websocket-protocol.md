@@ -149,10 +149,10 @@ const handlers: Record<string, (event: ServerEvent) => void> = {
 
 ## Acceptance Criteria
 
-- [ ] WS connection authenticated via cookie; invalid token → connection refused
-- [ ] Connecting user's presence broadcast to all contacts/room-mates
-- [ ] Disconnecting user's presence updated and broadcast
-- [ ] `message.new` delivered to all connected room members
-- [ ] `session.revoked` causes that tab to redirect to `/login`
-- [ ] Multi-tab: events sent to all tabs of a user
-- [ ] Stale connections cleaned up after 90s without ping
+- [x] WS connection authenticated via cookie; invalid token → connection refused
+- [x] Connecting user's presence broadcast to all contacts/room-mates
+- [x] Disconnecting user's presence updated and broadcast
+- [x] `message.new` delivered to all connected room members
+- [x] `session.revoked` causes that tab to redirect to `/login`
+- [x] Multi-tab: events sent to all tabs of a user
+- [x] Stale connections cleaned up after 90s without ping

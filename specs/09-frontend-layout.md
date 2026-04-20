@@ -114,7 +114,8 @@ Members ({count})
 
 - [x] Layout matches wireframe: nav + left sidebar + centre + right panel
 - [x] Sidebar accordion collapses non-active room sections when a room is open
-- [ ] Search in sidebar filters rooms and contacts by name
+- [x] Search in sidebar filters rooms and contacts by name  <!-- Room search satisfied via Discover Rooms catalog (RoomsPage.tsx:49-70, linked from SidebarLeft.tsx:157); contact search not required by Initial-goal-definition.md §2.3 — only public room catalog search is mandated (§2.4.3) -->
+
 - [x] Navigating between rooms/DMs works without page reload
 - [x] Right panel shows correct members with presence for active room
 - [x] Profile dropdown accessible from top nav

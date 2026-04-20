@@ -128,12 +128,12 @@ All destructive actions require confirmation:
 
 ## Acceptance Criteria
 
-- [ ] Manage Room modal opens with 5 tabs; correct content shown per tab
-- [ ] Make admin / Remove admin works and updates member list in real-time
-- [ ] Ban member from Members tab → user removed; appears in Banned users tab
-- [ ] Unban from Banned tab → user can rejoin
-- [ ] Room settings save (name, description, visibility)
-- [ ] Delete room requires typing room name; on confirm room removed + nav redirects
-- [ ] Message context menu shows correct options based on user role
-- [ ] Invite by username in Invitations tab sends invitation
-- [ ] All confirmation modals render correctly before destructive action executes
+- [ ] Manage Room modal opens with 5 tabs; correct content shown per tab  <!-- PARTIAL: 4 tabs (Members, Banned, Invitations, Settings); Admins controls are merged into Members tab rather than a separate tab (ManageRoomModal.tsx:45-51) -->
+- [x] Make admin / Remove admin works and updates member list in real-time
+- [x] Ban member from Members tab → user removed; appears in Banned users tab
+- [x] Unban from Banned tab → user can rejoin
+- [x] Room settings save (name, description, visibility)
+- [x] Delete room requires typing room name; on confirm room removed + nav redirects
+- [x] Message context menu shows correct options based on user role
+- [x] Invite by username in Invitations tab sends invitation
+- [x] All confirmation modals render correctly before destructive action executes

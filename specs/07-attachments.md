@@ -135,12 +135,13 @@ Click download icon → GET `/api/attachments/{id}` (browser handles as download
 
 ## Acceptance Criteria
 
-- [ ] Upload image ≤ 3 MB → stored, visible in message, downloadable
-- [ ] Upload file ≤ 20 MB → stored, downloadable
-- [ ] Upload over size limit → 413, error shown to user
-- [ ] Original filename preserved
-- [ ] Optional comment saved + displayed
-- [ ] Paste from clipboard uploads file
-- [ ] User banned from room → existing attachment GET returns 403
-- [ ] Room deleted → all attachment files removed from disk
-- [ ] Download endpoint verifies membership on every request (not just upload time)
+- [ ] Upload image ≤ 3 MB → stored, visible in message, downloadable  <!-- PARTIAL: 3MB image-specific limit not enforced; backend uses 20MB cap for all files (attachments.py:32-41) -->
+- [x] Upload file ≤ 20 MB → stored, downloadable
+- [x] Upload over size limit → 413, error shown to user
+- [x] Original filename preserved
+- [x] Optional comment saved + displayed
+- [x] Paste from clipboard uploads file
+- [ ] User banned from room → existing attachment GET returns 403  <!-- MISSING: download endpoint does not check RoomBan (attachments.py:68-85) -->
+- [x] Room deleted → all attachment files removed from disk
+- [ ] Download endpoint verifies membership on every request (not just upload time)  <!-- PARTIAL: re-checks RoomMember but not RoomBan -->
+
