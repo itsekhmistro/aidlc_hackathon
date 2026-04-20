@@ -91,10 +91,10 @@ Used in: sidebar contact list, room member list.
 
 ## Acceptance Criteria
 
-- [ ] User connecting via WS appears as `online` to contacts/room-mates within 2 seconds
-- [ ] No mouse activity for 60s → user status changes to `afk` (visible to others)
-- [ ] Activity after AFK → status returns to `online`
-- [ ] Closing all tabs → status becomes `offline`
-- [ ] With 2 tabs open: active in tab A, idle in tab B → status is `online`
-- [ ] With 2 tabs open: idle in both → status becomes `afk`
-- [ ] Presence dot renders correctly for all 3 states
+- [x] User connecting via WS appears as `online` to contacts/room-mates within 2 seconds
+- [x] No mouse activity for 60s → user status changes to `afk` (visible to others)
+- [x] Activity after AFK → status returns to `online`
+- [x] Closing all tabs → status becomes `offline`
+- [x] With 2 tabs open: active in tab A, idle in tab B → status is `online`
+- [x] With 2 tabs open: idle in both → status becomes `afk`
+- [x] Presence dot renders correctly for all 3 states

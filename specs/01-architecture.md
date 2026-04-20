@@ -190,11 +190,11 @@ All messages are JSON with a `type` discriminator.
 
 ## Acceptance Criteria
 
-- [ ] All SQLModel models defined in `backend/app/models/`
-- [ ] Alembic migration generated and applies cleanly: `alembic upgrade head`
-- [ ] OpenAPI spec visible at `/docs` with all routes returning correct schemas
-- [ ] `frontend/src/lib/types.ts` updated with TypeScript equivalents of all server types
-- [ ] WS event union types defined in `frontend/src/lib/types.ts`
+- [x] All SQLModel models defined in `backend/app/models/`
+- [x] Alembic migration generated and applies cleanly: `alembic upgrade head`
+- [x] OpenAPI spec visible at `/docs` with all routes returning correct schemas
+- [x] `frontend/src/lib/types.ts` updated with TypeScript equivalents of all server types
+- [x] WS event union types defined in `frontend/src/lib/types.ts`
 
 ---
 

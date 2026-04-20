@@ -80,11 +80,11 @@ DELETE user:
 
 ## Acceptance Criteria
 
-- [ ] Register with email/username/password succeeds; duplicate email/username returns 422
-- [ ] Login sets `HttpOnly` cookie; page refresh preserves session
-- [ ] "Keep me signed in" sets 30-day cookie; unchecked = session cookie
-- [ ] Logout revokes only current session; other sessions remain valid
-- [ ] Password reset flow works (token returned in response body for dev testing)
-- [ ] Account deletion cascades correctly — owned rooms and content removed, non-owned memberships cleared
-- [ ] Sessions page shows all active sessions with IP + user-agent; individual logout works
-- [ ] All protected routes return 401 without valid cookie
+- [x] Register with email/username/password succeeds; duplicate email/username returns 422
+- [x] Login sets `HttpOnly` cookie; page refresh preserves session
+- [x] "Keep me signed in" sets 30-day cookie; unchecked = session cookie
+- [x] Logout revokes only current session; other sessions remain valid
+- [x] Password reset flow works (token returned in response body for dev testing)
+- [x] Account deletion cascades correctly — owned rooms and content removed, non-owned memberships cleared
+- [x] Sessions page shows all active sessions with IP + user-agent; individual logout works
+- [x] All protected routes return 401 without valid cookie

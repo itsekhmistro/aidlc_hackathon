@@ -111,13 +111,13 @@ LIMIT 50
 
 ## Acceptance Criteria
 
-- [ ] Create public room → appears in catalog immediately
-- [ ] Create private room → not visible in catalog
-- [ ] Join public room → user added as member; others see `room.member_joined` event
-- [ ] Owner cannot leave room
-- [ ] Admin banning a member → removed + cannot rejoin
-- [ ] Unbanning allows rejoin
-- [ ] Room deletion cascades: messages, files, memberships all removed
-- [ ] Visibility change by owner works
-- [ ] Private room invitation flow: invite → accept → member added
-- [ ] Non-member cannot read room messages (403)
+- [x] Create public room → appears in catalog immediately
+- [x] Create private room → not visible in catalog
+- [x] Join public room → user added as member; others see `room.member_joined` event
+- [x] Owner cannot leave room
+- [x] Admin banning a member → removed + cannot rejoin
+- [x] Unbanning allows rejoin
+- [x] Room deletion cascades: messages, files, memberships all removed
+- [x] Visibility change by owner works
+- [x] Private room invitation flow: invite → accept → member added
+- [x] Non-member cannot read room messages (403)

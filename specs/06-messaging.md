@@ -108,13 +108,13 @@ Messages to offline users are persisted in DB — delivered on next connection v
 
 ## Acceptance Criteria
 
-- [ ] Send message → appears for all room members within 3 seconds via WS
-- [ ] Messages to offline user → visible when they reconnect (loaded from DB history)
-- [ ] Edit own message → `[edited]` indicator appears; content updated for all
+- [x] Send message → appears for all room members within 3 seconds via WS
+- [x] Messages to offline user → visible when they reconnect (loaded from DB history)
+- [x] Edit own message → `[edited]` indicator appears; content updated for all
 - [ ] Delete message (author or admin) → replaced with deleted placeholder
-- [ ] Reply to message → quoted context shown above reply
+- [x] Reply to message → quoted context shown above reply
 - [ ] Infinite scroll: scrolling to top loads older messages without losing scroll position
 - [ ] 10 000 message room remains usable (virtual list or windowing)
-- [ ] Content over 3072 chars rejected with clear error
-- [ ] Non-member cannot POST to room (403)
+- [x] Content over 3072 chars rejected with clear error
+- [x] Non-member cannot POST to room (403)
 - [ ] Personal dialog: banned participant cannot send new messages (403)
