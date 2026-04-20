@@ -4,7 +4,15 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.presence import presence_manager
 from tests.conftest import register_and_login
+
+
+@pytest.fixture(autouse=True)
+def _reset_presence_manager():
+    yield
+    presence_manager.connections.clear()
+    presence_manager.tab_status.clear()
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -47,6 +55,35 @@ def test_ban_user_returns_201(client: TestClient):
     assert data["banned_id"] == banned_id
     assert "banner_id" in data
     assert "created_at" in data
+
+
+def test_ban_emits_user_banned_with_both_ids(client: TestClient):
+    """Payload must carry BOTH banner_id and banned_id (WsUserBanned type)."""
+    _auth(client, "banneruser")
+    banner_id = client.get("/api/auth/me").json()["id"]
+    client.cookies.clear()
+    _auth(client, "targetuser")
+    target_id = client.get("/api/auth/me").json()["id"]
+
+    # Target opens a WS, banner then issues the ban.
+    with client.websocket_connect("/ws?tab_id=target-tab") as ws:
+        assert ws.receive_json()["type"] == "presence.bulk"
+
+        client.cookies.clear()
+        _login(client, "banneruser")
+        r = client.post("/api/bans", json={"banned_id": target_id})
+        assert r.status_code == 201
+
+        # Skip any presence-related frames that may race in.
+        seen = None
+        for _ in range(5):
+            ev = ws.receive_json()
+            if ev.get("type") == "user.banned":
+                seen = ev
+                break
+        assert seen is not None, "user.banned frame never arrived"
+        assert seen["banner_id"] == banner_id
+        assert seen["banned_id"] == target_id
 
 
 def test_ban_yourself_returns_400(client: TestClient):

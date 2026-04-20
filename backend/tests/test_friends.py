@@ -4,7 +4,15 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.presence import presence_manager
 from tests.conftest import register_and_login
+
+
+@pytest.fixture(autouse=True)
+def _reset_presence_manager():
+    yield
+    presence_manager.connections.clear()
+    presence_manager.tab_status.clear()
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -159,6 +167,38 @@ def test_accept_friend_request_happy_path(client: TestClient):
     assert r.status_code == 200
     data = r.json()
     assert data["status"] == "accepted"
+
+
+def test_accept_friend_request_emits_friend_accepted_to_requester(client: TestClient):
+    """Regression: backend used to emit 'friend.request_accepted' — frontend
+    typed 'friend.accepted'. Ensure the renamed event reaches the requester."""
+    _auth(client, "xander")
+    client.cookies.clear()
+    _auth(client, "yara")
+    client.cookies.clear()
+    _login(client, "xander")
+    friendship = _send_request(client, "yara")
+
+    with client.websocket_connect("/ws?tab_id=xander-tab") as ws:
+        # Drain initial presence.bulk frame.
+        assert ws.receive_json()["type"] == "presence.bulk"
+
+        # Switch to yara and accept the request.
+        client.cookies.clear()
+        _login(client, "yara")
+        r = client.patch(f"/api/friends/{friendship['id']}/accept")
+        assert r.status_code == 200
+
+        # Skip non-friend frames (presence.update can race in).
+        seen = None
+        for _ in range(5):
+            ev = ws.receive_json()
+            if ev.get("type", "").startswith("friend."):
+                seen = ev
+                break
+        assert seen is not None, "no friend.* event arrived"
+        assert seen["type"] == "friend.accepted"
+        assert "friendship" in seen
 
 
 def test_accept_own_request_returns_403(client: TestClient):

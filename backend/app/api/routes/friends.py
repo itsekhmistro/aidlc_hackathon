@@ -121,7 +121,7 @@ async def accept_friend_request(
     public = _to_friendship_public(session, friendship)
     await presence_manager.send_to_user(
         friendship.requester_id,
-        {"type": "friend.request_accepted", "friendship": public.model_dump(mode="json")},
+        {"type": "friend.accepted", "friendship": public.model_dump(mode="json")},
     )
 
     return public

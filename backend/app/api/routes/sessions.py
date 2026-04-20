@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Request, status
 from sqlmodel import select
 
 from app.api.deps import CookieCurrentUser, SessionDep
+from app.core.presence import presence_manager
 from app.models.user import UserSession
 from app.schemas.user import SessionPublic
 
@@ -46,7 +47,7 @@ def list_sessions(
 
 
 @router.delete("/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
-def revoke_session(session_id: uuid.UUID, current_user: CookieCurrentUser, session: SessionDep) -> None:
+async def revoke_session(session_id: uuid.UUID, current_user: CookieCurrentUser, session: SessionDep) -> None:
     user_session = session.exec(
         select(UserSession).where(
             UserSession.id == session_id,
@@ -58,3 +59,8 @@ def revoke_session(session_id: uuid.UUID, current_user: CookieCurrentUser, sessi
     user_session.revoked_at = datetime.now(timezone.utc)
     session.add(user_session)
     session.commit()
+
+    await presence_manager.send_to_user(
+        current_user.id,
+        {"type": "session.revoked", "session_id": str(session_id)},
+    )

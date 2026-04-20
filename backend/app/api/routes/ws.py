@@ -1,8 +1,12 @@
+import asyncio
 import hashlib
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, Depends, Query, WebSocket, WebSocketDisconnect
 from sqlmodel import Session, select
+
+# Spec: specs/11-websocket-protocol.md:127 — reap silent clients after 90s.
+IDLE_TIMEOUT = 90
 
 from app.core.db import get_session
 from app.core.presence import presence_manager
@@ -62,7 +66,13 @@ async def websocket_endpoint(
 
     try:
         while True:
-            data = await websocket.receive_json()
+            try:
+                data = await asyncio.wait_for(
+                    websocket.receive_json(), timeout=IDLE_TIMEOUT
+                )
+            except asyncio.TimeoutError:
+                await websocket.close(code=4000)
+                break
             msg_type = data.get("type", "")
 
             if msg_type == "presence.heartbeat":

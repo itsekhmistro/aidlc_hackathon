@@ -1,4 +1,14 @@
+import pytest
+
+from app.core.presence import presence_manager
 from tests.conftest import register_and_login
+
+
+@pytest.fixture(autouse=True)
+def _reset_presence_manager():
+    yield
+    presence_manager.connections.clear()
+    presence_manager.tab_status.clear()
 
 
 # ── List sessions ────────────────────────────────────────────────────────────
@@ -41,6 +51,78 @@ def test_list_sessions_exactly_one_current_with_multiple_sessions(client):
 def test_list_sessions_requires_auth(client):
     r = client.get("/api/sessions")
     assert r.status_code == 401
+
+
+def test_revoke_session_emits_session_revoked_over_ws(client):
+    register_and_login(client, "alice", "alice@test.com")
+    sessions = client.get("/api/sessions").json()
+    session_id = sessions[0]["id"]
+
+    with client.websocket_connect("/ws?tab_id=tab-A") as ws:
+        # Drain the initial presence.bulk frame sent on connect.
+        first = ws.receive_json()
+        assert first["type"] == "presence.bulk"
+
+        r = client.delete(f"/api/sessions/{session_id}")
+        assert r.status_code == 204
+
+        event = ws.receive_json()
+        assert event == {"type": "session.revoked", "session_id": session_id}
+
+
+def test_revoke_session_fans_out_to_all_tabs_of_same_user(client):
+    register_and_login(client, "alice", "alice@test.com")
+    sessions = client.get("/api/sessions").json()
+    session_id = sessions[0]["id"]
+
+    with client.websocket_connect("/ws?tab_id=tab-A") as ws_a, \
+            client.websocket_connect("/ws?tab_id=tab-B") as ws_b:
+        # Drain initial presence.bulk on both tabs.
+        assert ws_a.receive_json()["type"] == "presence.bulk"
+        assert ws_b.receive_json()["type"] == "presence.bulk"
+
+        r = client.delete(f"/api/sessions/{session_id}")
+        assert r.status_code == 204
+
+        # Both tabs of the same user should receive the event.
+        def _next_revoke(ws):
+            while True:
+                ev = ws.receive_json()
+                if ev.get("type") == "session.revoked":
+                    return ev
+
+        assert _next_revoke(ws_a) == {"type": "session.revoked", "session_id": session_id}
+        assert _next_revoke(ws_b) == {"type": "session.revoked", "session_id": session_id}
+
+
+def test_revoke_session_targets_only_the_owning_user(client, monkeypatch):
+    """Sanity: the emit always targets current_user.id, never another user."""
+    import uuid
+    captured: list[tuple[uuid.UUID, dict]] = []
+
+    from app.core.presence import presence_manager as pm
+
+    real_send = pm.send_to_user
+
+    async def spy_send(user_id, event):
+        captured.append((user_id, event))
+        await real_send(user_id, event)
+
+    monkeypatch.setattr(pm, "send_to_user", spy_send)
+
+    register_and_login(client, "alice", "alice@test.com")
+    alice_id = client.get("/api/auth/me").json()["id"]
+    sessions = client.get("/api/sessions").json()
+    session_id = sessions[0]["id"]
+
+    r = client.delete(f"/api/sessions/{session_id}")
+    assert r.status_code == 204
+
+    revoke_calls = [
+        (uid, ev) for uid, ev in captured if ev.get("type") == "session.revoked"
+    ]
+    assert len(revoke_calls) == 1
+    assert str(revoke_calls[0][0]) == alice_id
 
 
 def test_list_sessions_excludes_revoked(client):

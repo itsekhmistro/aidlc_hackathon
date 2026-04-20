@@ -46,7 +46,11 @@ async def ban_user(
 
     await presence_manager.send_to_user(
         body.banned_id,
-        {"type": "user.banned", "banner_id": str(current_user.id)},
+        {
+            "type": "user.banned",
+            "banner_id": str(current_user.id),
+            "banned_id": str(body.banned_id),
+        },
     )
 
     return UserBanPublic(

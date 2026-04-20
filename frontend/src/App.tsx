@@ -9,6 +9,7 @@ import { useWebSocket } from "./hooks/useWebSocket";
 import { setBulkPresence, setPresence } from "./lib/presenceStore";
 import { setUnreadCounts, incrementUnread, clearUnread, useTotalUnread } from "./lib/unreadStore";
 import { api } from "./lib/api";
+import { handleSessionRevoked } from "./lib/sessionRevoked";
 import type { ClientEvent, RoomMemberPublic, ServerEvent, UnreadCountsPublic } from "./lib/types";
 import ChatEmpty from "./pages/ChatEmpty";
 import DmChatPage from "./pages/DmChatPage";
@@ -83,6 +84,8 @@ function AppWebSocket() {
         incrementUnread(event.room_id);
       } else if (event.type === "unread.cleared") {
         clearUnread(event.room_id);
+      } else if (event.type === "session.revoked") {
+        handleSessionRevoked(qc, navigate);
       }
     },
     [qc, navigate],
