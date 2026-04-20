@@ -29,7 +29,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-hackathon}
       SECRET_KEY: ${SECRET_KEY:-changeme}
-      BACKEND_CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://frontend:5173"]'
+      UPLOAD_DIR: ${UPLOAD_DIR:-/uploads}
+      BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-'["http://localhost:5173","http://localhost:3000","http://frontend:5173"]'}
     volumes:
       - uploads_data:/uploads
     command:
@@ -53,7 +54,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "5173:5173"
+      - "5173:80"
     depends_on:
       backend:
         condition: service_healthy
