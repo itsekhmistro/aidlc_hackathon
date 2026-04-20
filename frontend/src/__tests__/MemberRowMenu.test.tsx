@@ -144,7 +144,7 @@ describe("MemberRowMenu", () => {
         return {
           id: "pr-1",
           name: "__dm__:u-1:u-2",
-          display_name: "bob (bob@test.com)",
+          display_name: "bob",
           description: null,
           visibility: "private",
           owner_id: "u-1",

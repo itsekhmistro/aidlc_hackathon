@@ -46,17 +46,15 @@ describe("MessageThread header title", () => {
     expect(screen.getByText(/^#\s*general\s*$/)).toBeInTheDocument();
   });
 
-  it("renders a DM as `@ <counterpart> (email)` from display_name", () => {
+  it("renders a DM as `@ <counterpart-username>` from display_name", () => {
     renderThread(
       baseRoom({
         is_personal: true,
         name: "__dm__:0a691fcb-21d0-4c25-9ca0-4829dc1949b0:d8617c24-a53e-4971-82bc-6fe121e84b81",
-        display_name: "jack (jack@test.com)",
+        display_name: "jack",
       }),
     );
-    expect(
-      screen.getByText(/^@\s*jack \(jack@test\.com\)\s*$/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/^@\s*jack\s*$/)).toBeInTheDocument();
     // Canonical internal name must not leak into the header.
     expect(screen.queryByText(/__dm__/)).toBeNull();
   });

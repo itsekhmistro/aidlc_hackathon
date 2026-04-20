@@ -59,8 +59,8 @@ def test_personal_room_exposes_counterpart_username_as_display_name(client: Test
     assert body["is_personal"] is True
     # Canonical name is still the deterministic `__dm__:…:…` key.
     assert body["name"].startswith("__dm__:")
-    # Display name from alice's viewpoint is "jack (jack@test.com)".
-    assert body["display_name"] == "jack (jack@test.com)"
+    # Display name from alice's viewpoint is "jack".
+    assert body["display_name"] == "jack"
 
 
 def test_personal_room_display_name_flips_for_each_viewer(client: TestClient) -> None:
@@ -79,7 +79,7 @@ def test_personal_room_display_name_flips_for_each_viewer(client: TestClient) ->
         for f in friends
     )
     room_alice = client.get(f"/api/personal-rooms/{jack_id}").json()
-    assert room_alice["display_name"] == "jack (jack@test.com)"
+    assert room_alice["display_name"] == "jack"
 
     # jack POV on the same room — via /api/rooms/mine
     client.cookies.clear()
@@ -88,7 +88,7 @@ def test_personal_room_display_name_flips_for_each_viewer(client: TestClient) ->
     dm_rows = [r for r in mine if r["is_personal"]]
     assert len(dm_rows) == 1
     assert dm_rows[0]["id"] == room_alice["id"]
-    assert dm_rows[0]["display_name"] == "alice (alice@test.com)"
+    assert dm_rows[0]["display_name"] == "alice"
 
 
 def test_non_personal_room_display_name_equals_name(client: TestClient) -> None:

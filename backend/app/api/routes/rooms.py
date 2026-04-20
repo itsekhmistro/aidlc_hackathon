@@ -44,9 +44,7 @@ def _display_name_for_viewer(session, room: Room, viewer_id: uuid.UUID) -> str:
         .where(RoomMember.room_id == room.id, RoomMember.user_id != viewer_id)
         .limit(1)
     ).first()
-    if not other:
-        return room.name
-    return f"{other.username} ({other.email})"
+    return other.username if other else room.name
 
 
 def _to_room_public(session, room: Room, viewer_id: uuid.UUID) -> RoomPublic:
