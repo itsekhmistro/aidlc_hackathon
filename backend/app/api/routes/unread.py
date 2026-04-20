@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import func
+from sqlalchemy.orm import aliased
 from sqlmodel import select
 
 from app.api.deps import CookieCurrentUser, SessionDep
@@ -16,34 +17,28 @@ router = APIRouter(prefix="/api/unread", tags=["unread"])
 
 @router.get("", response_model=UnreadCountsPublic)
 def get_unread_counts(current_user: CookieCurrentUser, session: SessionDep) -> dict:
-    room_ids = session.exec(
-        select(RoomMember.room_id).where(RoomMember.user_id == current_user.id)
-    ).all()
-
-    counts: dict[str, int] = {}
-    for room_id in room_ids:
-        receipt = session.exec(
-            select(ReadReceipt).where(
-                ReadReceipt.room_id == room_id,
-                ReadReceipt.user_id == current_user.id,
-            )
-        ).first()
-        if receipt is None:
-            counts[str(room_id)] = 0
-        else:
-            last_msg = session.get(Message, receipt.last_read_message_id)
-            if last_msg is None:
-                counts[str(room_id)] = 0
-            else:
-                count = session.exec(
-                    select(func.count()).select_from(Message).where(
-                        Message.room_id == room_id,
-                        Message.created_at > last_msg.created_at,
-                        Message.deleted_at.is_(None),
-                    )
-                ).one()
-                counts[str(room_id)] = count
-
+    LastRead = aliased(Message)
+    stmt = (
+        select(RoomMember.room_id, func.count(Message.id))
+        .select_from(RoomMember)
+        .outerjoin(
+            ReadReceipt,
+            (ReadReceipt.room_id == RoomMember.room_id)
+            & (ReadReceipt.user_id == RoomMember.user_id),
+        )
+        .outerjoin(LastRead, LastRead.id == ReadReceipt.last_read_message_id)
+        .outerjoin(
+            Message,
+            (Message.room_id == RoomMember.room_id)
+            & Message.deleted_at.is_(None)
+            & LastRead.created_at.isnot(None)
+            & (Message.created_at > LastRead.created_at),
+        )
+        .where(RoomMember.user_id == current_user.id)
+        .group_by(RoomMember.room_id)
+    )
+    rows = session.exec(stmt).all()
+    counts = {str(rid): int(cnt) for rid, cnt in rows}
     return UnreadCountsPublic(counts=counts)
 
 

@@ -1,6 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import AppShell from "./components/AppShell";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useActivityTracker } from "./hooks/useActivityTracker";
@@ -9,7 +9,7 @@ import { useWebSocket } from "./hooks/useWebSocket";
 import { setBulkPresence, setPresence } from "./lib/presenceStore";
 import { setUnreadCounts, incrementUnread, clearUnread } from "./lib/unreadStore";
 import { api } from "./lib/api";
-import type { ClientEvent, ServerEvent, UnreadCountsPublic } from "./lib/types";
+import type { ClientEvent, RoomMemberPublic, ServerEvent, UnreadCountsPublic } from "./lib/types";
 import ChatEmpty from "./pages/ChatEmpty";
 import DmChatPage from "./pages/DmChatPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -36,6 +36,7 @@ function AppWebSocket() {
   const { data: me } = useCurrentUser();
   const isAuthenticated = !!me;
   const qc = useQueryClient();
+  const navigate = useNavigate();
 
   const handleMessage = useCallback(
     (event: ServerEvent) => {
@@ -58,13 +59,33 @@ function AppWebSocket() {
       } else if (event.type === "user.banned") {
         qc.invalidateQueries({ queryKey: ["friends"] });
         qc.invalidateQueries({ queryKey: ["bans"] });
+        // Kick the banned user out of any DM they're actively viewing with the banner.
+        const path = window.location.pathname;
+        const dmMatch = path.match(/^\/chat\/dm\/([^/]+)$/);
+        if (dmMatch && dmMatch[1] === event.banner_id) {
+          navigate("/chat", { replace: true });
+        } else {
+          const roomMatch = path.match(/^\/chat\/rooms\/([^/]+)$/);
+          if (roomMatch) {
+            const members = qc.getQueryData<RoomMemberPublic[]>(["rooms", roomMatch[1], "members"]);
+            if (members?.some((m) => m.user_id === event.banner_id)) {
+              navigate("/chat", { replace: true });
+            }
+          }
+        }
       } else if (event.type === "unread.increment") {
+        // Suppress the badge when the user is already viewing the room; keep the
+        // server-side receipt fresh so the badge stays at 0 after relogin too.
+        if (window.location.pathname === `/chat/rooms/${event.room_id}`) {
+          api.post(`/api/unread/${event.room_id}/mark-read`).catch(() => {});
+          return;
+        }
         incrementUnread(event.room_id);
       } else if (event.type === "unread.cleared") {
         clearUnread(event.room_id);
       }
     },
-    [qc],
+    [qc, navigate],
   );
 
   const { sendMessage, readyState } = useWebSocket<ServerEvent>(
