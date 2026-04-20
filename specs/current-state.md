@@ -1,205 +1,141 @@
-⏺ Architect Gap Analysis: TASK-02, TASK-03, TASK-04
+# Current State — as of 2026-04-20
 
-  ---
-  TASK-02: Authentication & Session Management
+Last reviewed by Lead + Architect after commit `6ad6a38`.
 
-  Backend — Status: ✅ COMPLETE
+---
 
-  All 9 routes implemented and correct:
-  - POST /api/auth/register — duplicate check, session cookie, tombstone soft-delete
-  - POST /api/auth/login — bcrypt verify, persistent/session cookie
-  - POST /api/auth/logout — revokes current session only
-  - POST /api/auth/password-reset-request — token returned in body (dev mode)
-  - POST /api/auth/password-reset — validates reset token, updates password
-  - PATCH /api/auth/password-change — authenticated, old+new password
-  - DELETE /api/auth/account — full cascade delete per spec
-  - GET /api/sessions — lists active sessions with IP/user-agent
-  - DELETE /api/sessions/{session_id} — per-session revocation
+## Phase 1 Status
 
-  Token strategy is correct: secrets.token_urlsafe(32) → SHA-256 stored, raw in HttpOnly cookie, SameSite=Lax.
+| Task | Backend | Frontend | Overall |
+|---|---|---|---|
+| TASK-02 Auth | ✅ Complete | ✅ Complete | ✅ Done |
+| TASK-03 Presence | ✅ Complete | ✅ Complete | ✅ Done |
+| TASK-04 Contacts | ❌ Stubs (501) | ✅ Complete | 🟡 Backend only |
+| TASK-05 Rooms | ✅ Complete | ❌ Not started | 🟡 Backend only |
 
-  One design note: Reset tokens are stored in UserSession with user_agent="password_reset". Functional but fragile — a revoke_all_sessions operation would accidentally invalidate
-  pending resets. Acceptable for hackathon scope; flag for post-hackathon refactor.
+---
 
-  ---
-  Frontend — Status: ❌ CRITICAL BLOCKER (complete rewrite needed)
+## What is done
 
-  ┌─────────────────────────┬──────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │          Issue          │ Severity │                                                                 Detail                                                                  │
-  ├─────────────────────────┼──────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ localStorage for token  │ BLOCKER  │ useAuth.ts stores access_token in localStorage. Backend issues HttpOnly cookie — frontend can't read it and must not try. Auth state =  │
-  │                         │          │ "can I hit /api/users/me without 401?"                                                                                                  │
-  ├─────────────────────────┼──────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ Wrong API URLs          │ BLOCKER  │ Calls /api/v1/login/access-token and /api/v1/users/me — these don't exist. Correct: /api/auth/login, /api/users/me                      │
-  ├─────────────────────────┼──────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ Bearer token header     │ BLOCKER  │ Uses Authorization: Bearer <token>. Backend reads Cookie: auth_token. Remove all manual token handling.                                 │
-  ├─────────────────────────┼──────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ useLogout broken        │ BLOCKER  │ Only removes localStorage item. Must POST /api/auth/logout then redirect to /login.                                                     │
-  ├─────────────────────────┼──────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ Missing persistent in   │ Major    │ No "keep me signed in" checkbox → persistent always falsy. Backend supports it, UI doesn't expose it.                                   │
-  │ login                   │          │                                                                                                                                         │
-  ├─────────────────────────┼──────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ Missing pages           │ Major    │ No /register, /forgot-password, /reset-password?token= routes or pages.                                                                 │
-  ├─────────────────────────┼──────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ No Zod + React Hook     │ Major    │ Forms use raw useState. Spec requires RHF + Zod with server-side errors inline.                                                         │
-  │ Form                    │          │                                                                                                                                         │
-  ├─────────────────────────┼──────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ No 401 global redirect  │ Major    │ No interceptor to redirect to /login on 401 from any API call.                                                                          │
-  └─────────────────────────┴──────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+### TASK-02 Authentication
+- **Backend**: All 9 routes + `GET /api/auth/me`. HttpOnly cookie, SHA-256 session tokens, 30-day persistent sessions, full cascade delete, password reset flow.
+- **Frontend**: `useAuth.ts` (cookie-based, no localStorage). `LoginPage` (RHF+Zod, persistent checkbox). `RegisterPage`, `ForgotPasswordPage`, `ResetPasswordPage` with inline server errors.
+- **Tests**: 30 backend tests (29 pass, 1 skipped — known email uniqueness design issue). 13 frontend unit tests.
 
-  Required useAuth.ts rewrite contract:
-  // Auth state: inferred from /api/users/me — NO localStorage
-  export function useCurrentUser(): { user: UserPublic | null; isLoading: boolean }
-  export function useLogin(): MutationFn<{ email: string; password: string; persistent: boolean }>
-  export function useLogout(): () => Promise<void>  // calls POST /api/auth/logout
-  export function useRegister(): MutationFn<RegisterRequest>
+### TASK-03 Presence
+- **Backend**: `PresenceManager` — multi-tab keyed by `(user_id, tab_id)`, 3-state logic, broadcasts to room-mates + friends. `POST /api/presence/bulk` with live+DB fallback. WS at `/ws?tab_id=<uuid>`.
+- **Frontend**: `useActivityTracker.ts` (60s idle → `afk` heartbeat), `presenceStore.ts` (useSyncExternalStore), `PresenceDot.tsx` (green/yellow/gray). WS URL uses `window.location.host` through Vite proxy.
+- **Tests**: 10 backend tests. 9 frontend unit tests.
 
-  ---
-  TASK-03: Presence (Online / AFK / Offline)
+### TASK-04 Contacts (frontend)
+- **Frontend**: `ChatLayout.tsx` with sidebar: contacts list with `PresenceDot`, context menu (send message / remove friend / ban), incoming requests panel (accept/decline), `AddFriendModal` (username + optional message), ban confirmation modal.
+- **Hooks**: `useFriends.ts` — `useFriends`, `useFriendRequests`, `useSendFriendRequest`, `useAcceptFriendRequest`, `useRemoveFriend`, `useBanUser` all wired to backend (currently graceful 501 states).
 
-  Backend — Status: ✅ COMPLETE
+### TASK-05 Rooms (backend)
+- **Backend**: Full CRUD — list, create, get, update, delete, join, leave, members, admin grant/revoke, room bans, invitations. `is_personal` flag on `Room` model. All 93 backend tests passing.
 
-  PresenceManager correctly implements:
-  - connections: dict[UUID, dict[str, WebSocket]] — multi-tab keyed by (user_id, tab_id)
-  - compute_status: any tab online → online; all tabs afk → afk; empty → offline
-  - broadcast_presence: queries room-mates + accepted friends
-  - get_initial_presences: sends bulk state on connect
-  - DB Presence upsert for persistence across restarts
-  - POST /api/presence/bulk — live status with DB fallback
+### Infrastructure fix
+- `vite.config.ts` proxy target reads `BACKEND_URL` env var (default `localhost:8000`).
+- `docker-compose.override.yml` injects `BACKEND_URL=http://backend:8000` into frontend container. **Requires rebuild: `docker compose up --build frontend`.**
 
-  One deviation from spec: Spec says GET /api/presence/bulk with query body; implementation uses POST with JSON body. POST is more correct (GET with body is non-standard). No change
-   needed.
+---
 
-  WS endpoint at /ws?tab_id=<uuid> — correctly authenticates via auth_token cookie, registers tab, broadcasts on connect/disconnect, handles presence.heartbeat.
+## What is stubbed (all return HTTP 501)
 
-  ---
-  Frontend — Status: ❌ NOT STARTED
+### TASK-04 Backend
+| File | Endpoints |
+|---|---|
+| `backend/app/api/routes/friends.py` | GET /api/friends, GET /api/friends/requests/incoming, POST /api/friends/request, PATCH /api/friends/{id}/accept, DELETE /api/friends/{id} |
+| `backend/app/api/routes/user_bans.py` | GET /api/user-bans, POST /api/user-bans/{user_id}, DELETE /api/user-bans/{user_id} |
+| `backend/app/api/routes/personal.py` | GET /api/personal-rooms/{user_id} |
 
-  ┌───────────────────────┬──────────┬────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │        Missing        │ Severity │                                                                   Detail                                                                   │
-  ├───────────────────────┼──────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ useActivityTracker.ts │ Blocker  │ No AFK detection. Spec: listen to mousemove/keydown/etc, 60s idle → send presence.heartbeat afk, activity → send online. Tab ID from       │
-  │                       │          │ sessionStorage.                                                                                                                            │
-  ├───────────────────────┼──────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ presenceStore.ts      │ Blocker  │ No presence map. Spec: Map<userId, PresenceStatus>, updated by presence.update and presence.bulk WS events.                                │
-  ├───────────────────────┼──────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ PresenceDot component │ Major    │ No visual indicator for online/afk/offline states.                                                                                         │
-  ├───────────────────────┼──────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ WS URL mismatch       │ Major    │ App.tsx uses ws://localhost:8000/ws/${CLIENT_ID} (path param). Backend expects /ws?tab_id=<uuid>. Fix: /ws?tab_id=${tabId}                 │
-  ├───────────────────────┼──────────┼────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ No WS auth            │ Major    │ WS connects before auth is established. Cookie is sent automatically by browser on same-origin — but the hardcoded ws://localhost:8000     │
-  │                       │          │ bypasses the Vite proxy. Use /ws?tab_id=... (relative) so the proxy forwards it with the cookie.                                           │
-  └───────────────────────┴──────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+### TASK-06 Backend
+| File | Endpoints |
+|---|---|
+| `backend/app/api/routes/messages.py` | GET /api/messages/{room_id}, POST /api/messages/{room_id}, PATCH /api/messages/{room_id}/{msg_id}, DELETE /api/messages/{room_id}/{msg_id} |
 
-  Required frontend hooks contract:
-  // frontend/src/hooks/useActivityTracker.ts
-  export function useActivityTracker(tabId: string, sendMessage: (e: ClientEvent) => void): void
+### Also stubbed (Phase 2+)
+- `attachments.py` — 3 endpoints (TASK-07)
+- `unread.py` — 2 endpoints (TASK-08)
 
-  // frontend/src/lib/presenceStore.ts
-  export const presenceStore: Map<string, PresenceStatus>
-  export function usePresence(userId: string): PresenceStatus
+---
 
-  // frontend/src/components/PresenceDot.tsx
-  export function PresenceDot({ status }: { status: PresenceStatus }): JSX.Element
+## Known design issues (non-blocking)
 
-  ---
-  TASK-04: Contacts / Friends & User Bans
+1. **Email reuse after soft-delete**: `User.email` has a DB-level `UNIQUE` constraint. After account deletion, the email cannot be re-registered. Fix: mangle email on `DELETE /api/auth/account` → `user.email = f"__deleted__{uid}@deleted"`. Tracked as a skipped test.
+2. **Reset token in `UserSession`**: Password reset tokens are stored as `UserSession` rows with `user_agent="password_reset"`. A `revoke_all_sessions` operation would accidentally invalidate pending resets. Fix: separate `PasswordResetToken` table. Deferred post-hackathon.
 
-  Backend — Status: ❌ NOT STARTED (stubs only)
+---
 
-  All 8 routes in friends.py and user_bans.py return HTTP 501. Models exist (Friendship, UserBan in social.py) — that's the only done work.
+## Next steps — implementation plan
 
-  What backend must implement:
+### Wave 1 (parallel — unblock everything)
 
-  # friends.py — full implementation needed
-  GET  /api/friends                       → list[FriendshipPublic]  # status=accepted
-  GET  /api/friends/requests/incoming     → list[FriendshipPublic]  # status=pending, addressee=me
-  POST /api/friends/request               → FriendshipPublic        # body: {username, message?}
-                                          # guard: not banned, no existing friendship
-  PATCH /api/friends/{id}/accept          → FriendshipPublic        # only addressee can accept
-  DELETE /api/friends/{id}               → 204                      # requester OR addressee
+**Backend A: TASK-04 friends + user_bans + shared helpers**
 
-  # user_bans.py — full implementation needed
-  GET    /api/user-bans                   → list[UserBanPublic]
-  POST   /api/user-bans/{user_id}        → 204   # creates ban, terminates friendship, broadcasts WS
-  DELETE /api/user-bans/{user_id}        → 204   # removes ban
+1. Create `backend/app/core/social.py` with:
+   ```python
+   def friendship_between(session, a: UUID, b: UUID) -> Friendship | None
+   def ban_between(session, a: UUID, b: UUID) -> bool
+   ```
+2. Implement `friends.py` — all 5 routes. Key guards:
+   - `POST /api/friends/request`: check ban + check dup friendship, broadcast `friend.request_received` to addressee
+   - `PATCH .../accept`: only addressee can accept, broadcast `friend.accepted` to requester
+   - `DELETE .../remove`: either party, broadcast `friend.removed` to both
+   - All WS-broadcasting routes must be `async def`
+3. Add `UserBanPublic` to `schemas/social.py`, implement `user_bans.py`:
+   - `POST /api/user-bans/{user_id}`: create ban + delete friendship + broadcast `user.banned` to both
+   - No WS broadcast needed for unban
+4. Add `GET /api/rooms/mine` to `rooms.py` (registered before `/{room_id}` to avoid path conflict):
+   ```python
+   room_ids = session.exec(select(RoomMember.room_id).where(RoomMember.user_id == current_user.id)).all()
+   rooms where id in room_ids and is_personal == False
+   ```
 
-  WS broadcasts missing — none of the TASK-04 WS events are fired from backend:
-  - friend.request_received → to addressee on POST /api/friends/request
-  - friend.accepted → to requester on PATCH accept
-  - friend.removed → to both on DELETE
-  - user.banned → to both on POST /api/user-bans
+**Backend B: TASK-06 messages**
 
-  All event types ARE defined in frontend/src/lib/types.ts — wire up the broadcasts using presence_manager.send_to_user().
+1. Extract `_to_room_public` helper into `backend/app/core/room_utils.py` (avoids circular import from `personal.py`)
+2. Implement `messages.py` — all 4 routes:
+   - Cursor pagination: keyset `(created_at, id)` — use `ORDER BY created_at DESC, id DESC LIMIT n+1`
+   - Include soft-deleted messages (`deleted=True, content=""`) — do NOT filter out
+   - All WS-broadcasting routes (`send_message`, `edit_message`, `delete_message`) must be `async def`
+   - Broadcast `message.new/edited/deleted` to all `RoomMember` user_ids for the room
 
-  Missing can_message() gate — spec requires a guard in personal messaging that checks mutual friendship and no active ban. Route personal.py likely exists but this guard isn't in
-  friends.py.
+### Wave 2 (after Wave 1 friends are done)
 
-  ---
-  Frontend — Status: ❌ NOT STARTED
+**Backend: personal.py**
+- Use `friendship_between` from `app/core/social.py` and `ban_between`
+- Use `_to_room_public` from `app/core/room_utils.py`
+- Canonical room name: `__dm__` + `":".join(sorted([str(uid1), str(uid2)]))` (prefix prevents collision with user-created room names)
+- Guard: must be friends, neither banned the other
 
-  ┌─────────────────────────────────────────────────┬──────────┐
-  │                     Missing                     │ Severity │
-  ├─────────────────────────────────────────────────┼──────────┤
-  │ Contacts panel (sidebar) with presence dots     │ Blocker  │
-  ├─────────────────────────────────────────────────┼──────────┤
-  │ Friend requests: incoming list + accept/decline │ Blocker  │
-  ├─────────────────────────────────────────────────┼──────────┤
-  │ Send friend request: username typeahead         │ Major    │
-  ├─────────────────────────────────────────────────┼──────────┤
-  │ Context menu on contact: remove/ban             │ Major    │
-  ├─────────────────────────────────────────────────┼──────────┤
-  │ Ban confirmation modal                          │ Major    │
-  ├─────────────────────────────────────────────────┼──────────┤
-  │ Banned users list in settings + unban           │ Minor    │
-  └─────────────────────────────────────────────────┴──────────┘
+**Frontend A: TASK-05 rooms UI**
+- `useRooms.ts`: `useMyRooms` (GET /api/rooms/mine), `usePublicRooms`, `useCreateRoom`, `useJoinRoom`, `useLeaveRoom`
+- `ChatLayout.tsx`: add "Rooms" section to sidebar below contacts
+- `CreateRoomModal.tsx`: name + visibility select
+- `RoomBrowserModal.tsx`: searchable public rooms list with join button
 
-  ---
-  Architecture Risks
+### Wave 3 (after Wave 1 messages are done)
 
-  ┌─────────────────────────────────────────────┬──────────────────┬─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │                    Risk                     │     Severity     │                                                 Mitigation                                                  │
-  ├─────────────────────────────────────────────┼──────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ PresenceManager is in-process memory        │ Known/Acceptable │ Single process for hackathon. Flag for Redis pub/sub if scaling.                                            │
-  ├─────────────────────────────────────────────┼──────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ No can_message() gate for personal rooms    │ High             │ Must be implemented in TASK-04 backend before TASK-06 (messaging) starts.                                   │
-  ├─────────────────────────────────────────────┼──────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ Frontend completely decoupled from backend  │ Critical         │ The frontend auth layer is from the old scaffold template. Must be fixed before ANY other frontend feature  │
-  │ auth                                        │                  │ is functional.                                                                                              │
-  ├─────────────────────────────────────────────┼──────────────────┼─────────────────────────────────────────────────────────────────────────────────────────────────────────────┤
-  │ WS hardcoded to ws://localhost:8000         │ High             │ Breaks in Docker (different hostname) and in staging. Must use relative path through Vite proxy.            │
-  └─────────────────────────────────────────────┴──────────────────┴─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+**Frontend B: TASK-06 messaging UI**
+- `useMessages.ts`: `useInfiniteQuery` keyed by `["messages", roomId]`; WS events update cache directly (no re-fetch)
+- `MessageThread.tsx`: `RoomHeader` + `MessageList` (infinite scroll with Intersection Observer at top) + `MessageInput`
+- `MessageBubble.tsx`: own/other styling, deleted placeholder, edited badge, reply preview, context menu
+- Wire new WS event types in `App.tsx`: `message.new/edited/deleted`, `friend.request_received/accepted/removed`, `user.banned`
+- "Send message" in `ContactRow` → call `GET /api/personal-rooms/{userId}` → set active room
 
-  ---
-  Priority Order (Hackathon Timeline)
+### Wave 4 (integration)
+- Unread counts (TASK-08 backend stubs: `GET /api/unread`, `DELETE /api/unread/{room_id}`)
+- Frontend unread badges on sidebar room rows
 
-  IMMEDIATE (blocks everything else):
-    1. Frontend: rewrite useAuth.ts (cookie-based, correct endpoints)
-    2. Frontend: fix WS URL to use relative path /ws?tab_id=...
-    3. Frontend: add RegisterPage + update LoginPage (persistent checkbox, Zod)
+---
 
-  PHASE 1 COMPLETION:
-    4. Frontend: useActivityTracker.ts + presenceStore.ts + PresenceDot
-    5. Backend: implement friends.py (all 5 routes + WS broadcasts)
-    6. Backend: implement user_bans.py (all 3 routes + WS broadcasts + can_message gate)
+## Architect risks to watch
 
-  BEFORE PHASE 2:
-    7. Frontend: contacts panel (sidebar) — needed for messaging UX
-    8. Frontend: friend request flow UI
-
-  DEFER (Phase 2/3):
-    9. Frontend: ban management in settings
-    10. Backend: password reset token table separation
-
-  ---
-  Summary Table
-
-  ┌──────────────────┬───────────────┬─────────────────────┬─────────────────┐
-  │       Task       │    Backend    │      Frontend       │     Overall     │
-  ├──────────────────┼───────────────┼─────────────────────┼─────────────────┤
-  │ TASK-02 Auth     │ ✅ Complete   │ ❌ Critical rewrite │ 🔴 Blocked      │
-  ├──────────────────┼───────────────┼─────────────────────┼─────────────────┤
-  │ TASK-03 Presence │ ✅ Complete   │ ❌ Not started      │ 🟡 Backend done │
-  ├──────────────────┼───────────────┼─────────────────────┼─────────────────┤
-  │ TASK-04 Contacts │ ❌ Stubs only │ ❌ Not started      │ 🔴 Not started  │
-  └──────────────────┴───────────────┴─────────────────────┴─────────────────┘
+| Risk | Severity | Mitigation |
+|---|---|---|
+| No `GET /api/rooms/mine` endpoint | **Blocker for TASK-05 frontend** | Add to `rooms.py` in Wave 1 — before `/{room_id}` path |
+| Circular import: personal.py ↔ rooms.py ↔ friends.py | **High** | Extract helpers to `app/core/social.py` + `app/core/room_utils.py` |
+| WS broadcasts from sync `def` routes | **High** | All broadcasting routes must be `async def` |
+| Cursor pagination correctness (equal timestamps) | **Medium** | Composite keyset `(created_at, id)` handles ties; add explicit test |
+| Personal room name collision with user-created rooms | **Medium** | Prefix with `__dm__` or validate in `POST /api/rooms` |
