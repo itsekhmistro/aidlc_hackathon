@@ -35,10 +35,23 @@ def _member_count(session, room_id: uuid.UUID) -> int:
     ).one()
 
 
-def _to_room_public(session, room: Room) -> RoomPublic:
+def _display_name_for_viewer(session, room: Room, viewer_id: uuid.UUID) -> str:
+    if not room.is_personal:
+        return room.name
+    other = session.exec(
+        select(User)
+        .join(RoomMember, RoomMember.user_id == User.id)  # type: ignore[arg-type]
+        .where(RoomMember.room_id == room.id, RoomMember.user_id != viewer_id)
+        .limit(1)
+    ).first()
+    return other.username if other else room.name
+
+
+def _to_room_public(session, room: Room, viewer_id: uuid.UUID) -> RoomPublic:
     return RoomPublic(
         id=room.id,
         name=room.name,
+        display_name=_display_name_for_viewer(session, room, viewer_id),
         description=room.description,
         visibility=room.visibility,
         owner_id=room.owner_id,
@@ -142,7 +155,7 @@ def list_public_rooms(
             q = q.where(Room.name > anchor.name)
     q = q.order_by(Room.name).limit(limit)
     rooms = session.exec(q).all()
-    return [_to_room_public(session, r) for r in rooms]
+    return [_to_room_public(session, r, current_user.id) for r in rooms]
 
 
 @router.post("", response_model=RoomPublic, status_code=status.HTTP_201_CREATED)
@@ -164,7 +177,7 @@ def create_room(current_user: CookieCurrentUser, session: SessionDep, room_in: R
     session.add(member)
     session.commit()
     session.refresh(room)
-    return _to_room_public(session, room)
+    return _to_room_public(session, room, current_user.id)
 
 
 @router.get("/invitations/mine", response_model=list[RoomInvitationPublic])
@@ -220,7 +233,7 @@ async def get_my_rooms(current_user: CookieCurrentUser, session: SessionDep) -> 
     if not room_ids:
         return []
     rooms = session.exec(select(Room).where(Room.id.in_(room_ids))).all()  # type: ignore[attr-defined]
-    return [_to_room_public(session, r) for r in rooms]
+    return [_to_room_public(session, r, current_user.id) for r in rooms]
 
 
 @router.get("/{room_id}", response_model=RoomPublic)
@@ -228,7 +241,7 @@ def get_room(room_id: uuid.UUID, current_user: CookieCurrentUser, session: Sessi
     room = _get_room_or_404(session, room_id)
     if room.visibility == RoomVisibility.private.value:
         _require_membership(session, room_id, current_user.id)
-    return _to_room_public(session, room)
+    return _to_room_public(session, room, current_user.id)
 
 
 @router.patch("/{room_id}", response_model=RoomPublic)
@@ -260,7 +273,7 @@ async def update_room(room_id: uuid.UUID, current_user: CookieCurrentUser, sessi
             "room_id": str(room_id),
             "changes": changes,
         })
-    return _to_room_public(session, room)
+    return _to_room_public(session, room, current_user.id)
 
 
 @router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT)

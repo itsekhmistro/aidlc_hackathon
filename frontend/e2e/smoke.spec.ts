@@ -66,7 +66,9 @@ test.describe("Smoke — primary routes render without errors", () => {
 
     // /chat
     await page.goto("/chat");
-    await expect(page.getByText("Rooms", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Rooms" }),
+    ).toBeVisible();
 
     // /rooms — discovery page
     await page.goto("/rooms");

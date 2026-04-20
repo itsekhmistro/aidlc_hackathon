@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from sqlmodel import select
 
 from app.api.deps import CookieCurrentUser, SessionDep
+from app.api.routes.rooms import _to_room_public
 from app.core.social import ban_between, friendship_between
 from app.models.room import MemberRole, Room, RoomMember, RoomVisibility
 from app.models.social import FriendshipStatus
@@ -11,26 +12,6 @@ from app.models.user import User
 from app.schemas.room import RoomPublic
 
 router = APIRouter(prefix="/api/personal-rooms", tags=["personal-rooms"])
-
-
-def _member_count(session, room_id: uuid.UUID) -> int:
-    from sqlmodel import func
-    return session.exec(
-        select(func.count()).where(RoomMember.room_id == room_id)
-    ).one()
-
-
-def _to_room_public(session, room: Room) -> RoomPublic:
-    return RoomPublic(
-        id=room.id,
-        name=room.name,
-        description=room.description,
-        visibility=room.visibility,
-        owner_id=room.owner_id,
-        is_personal=room.is_personal,
-        created_at=room.created_at,
-        member_count=_member_count(session, room.id),
-    )
 
 
 @router.get("/{user_id}", response_model=RoomPublic)
@@ -71,4 +52,4 @@ async def get_or_create_personal_room(
         session.commit()
         session.refresh(room)
 
-    return _to_room_public(session, room)
+    return _to_room_public(session, room, current_user.id)

@@ -143,7 +143,8 @@ describe("MemberRowMenu", () => {
       if (path === "/api/personal-rooms/u-2")
         return {
           id: "pr-1",
-          name: "me-bob",
+          name: "__dm__:u-1:u-2",
+          display_name: "bob",
           description: null,
           visibility: "private",
           owner_id: "u-1",

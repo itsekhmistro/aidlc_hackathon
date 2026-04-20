@@ -9,6 +9,7 @@ from app.models.room import MemberRole, RoomVisibility
 class RoomPublic(SQLModel):
     id: uuid.UUID
     name: str
+    display_name: str
     description: str | None
     visibility: str
     owner_id: uuid.UUID

@@ -29,6 +29,7 @@ function room(overrides: Partial<RoomPublic> = {}): RoomPublic {
   return {
     id: "r-1",
     name: "general",
+    display_name: "general",
     description: null,
     visibility: "public",
     owner_id: "u-1",

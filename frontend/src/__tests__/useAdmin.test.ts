@@ -30,6 +30,7 @@ function makeWrapper() {
 const mockRoom: RoomPublic = {
   id: "room-1",
   name: "general",
+  display_name: "general",
   description: null,
   visibility: "public",
   owner_id: "user-1",

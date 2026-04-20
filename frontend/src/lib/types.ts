@@ -24,6 +24,7 @@ export interface SessionPublic {
 export interface RoomPublic {
   id: string;
   name: string;
+  display_name: string;
   description: string | null;
   visibility: RoomVisibility;
   owner_id: string;

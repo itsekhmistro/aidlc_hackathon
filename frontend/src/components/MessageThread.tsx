@@ -36,7 +36,7 @@ export default function MessageThread({ room, currentUserId }: Props) {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b px-4 py-3 font-semibold text-gray-800">
-        # {room.name}
+        {room.is_personal ? "@" : "#"} {room.display_name}
         {room.description && (
           <span className="ml-2 text-xs font-normal text-gray-500">{room.description}</span>
         )}

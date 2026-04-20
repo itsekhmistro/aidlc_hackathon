@@ -87,6 +87,17 @@
   - **C · Contact-row ban action** — already shipped earlier in `ContactRow.tsx`
     (⋮ menu → "Ban user" with confirm modal). Re-verified 2026-04-20; no work needed.
 
+  Wave 4 (2026-04-20) — TASK-15 personal-room display names:
+  - Backend: `RoomPublic` gains a per-viewer `display_name` field. For personal
+    rooms it resolves to the other member's username; for regular rooms it
+    mirrors `name`. Canonical `Room.name` (`__dm__:<sorted uuids>`) stays
+    immutable as the dedup key.
+  - Frontend: `RoomRow` and `MessageThread` render `display_name` prefixed with
+    `@` for DMs and `#` for regular rooms. `ManageRoomModal` title uses
+    `display_name` too.
+  - Tests: 3 pytest cases (viewer-specific DM resolution, flip between
+    viewers, regular rooms unaffected) + 2 vitest for the thread header.
+
   ---
   Demo-script confidence (5-step happy path)
 
@@ -99,11 +110,11 @@
   Smoke coverage: `e2e/smoke.spec.ts` walks `/chat`, `/rooms`, `/sessions`, `/profile` — no uncaught console errors, exactly one "Current session" pill.
 
   ---
-  Final verification (2026-04-20, post-Wave-3)
+  Final verification (2026-04-20, post-Wave-4)
 
-  - Backend: 184 pytest passing (1 pre-existing skip)
-  - Frontend: 130 vitest passing · 0 TypeScript errors · clean Vite build (shadcn deps resolve via `@/*` alias)
-  - E2E: 11 Playwright specs passing (including `admin.spec.ts`)
+  - Backend: 187 pytest passing (1 pre-existing skip)
+  - Frontend: 139 vitest passing · 0 TypeScript errors · clean Vite build
+  - E2E: 11 Playwright specs passing (sequential worker)
   - Migration auto-applies on container boot (idempotent); uploads persist across `force-recreate`
   - No open 🔴 blockers
 

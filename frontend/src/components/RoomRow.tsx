@@ -20,11 +20,8 @@ export default function RoomRow({
           : "text-gray-700 hover:bg-gray-100"
       }`}
     >
-      <span className="text-gray-400">#</span>
-      <span className="flex-1 truncate">{room.name}</span>
-      {room.is_personal && (
-        <span className="text-xs text-gray-400">personal</span>
-      )}
+      <span className="text-gray-400">{room.is_personal ? "@" : "#"}</span>
+      <span className="flex-1 truncate">{room.display_name}</span>
       {unread > 0 && (
         <span className="text-xs bg-blue-500 text-white rounded-full px-1.5 min-w-[1.25rem] text-center leading-5">
           {unread > 99 ? "99+" : unread}

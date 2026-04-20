@@ -31,7 +31,7 @@ export default function ManageRoomModal({ roomId, onClose }: Props) {
       <div className="bg-white rounded-lg shadow-xl p-6 w-[32rem] max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900">
-            Manage room {room ? `· #${room.name}` : ""}
+            Manage room {room ? `· #${room.display_name}` : ""}
           </h3>
           <button
             type="button"

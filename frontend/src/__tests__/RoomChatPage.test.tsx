@@ -25,6 +25,7 @@ vi.mock("../components/MessageThread", () => ({
 const mockRoom: RoomPublic = {
   id: "room-42",
   name: "general",
+  display_name: "general",
   description: "the main room",
   visibility: "public",
   owner_id: "u-1",
