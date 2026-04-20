@@ -40,7 +40,7 @@ response schema. The backend resolves it once per room per request using the
 authenticated viewer's id:
 
 - `is_personal = false` → `display_name = room.name`
-- `is_personal = true`  → `display_name = <other member's username>`
+- `is_personal = true`  → `display_name = "<username> (<email>)"`
   (fallback to `room.name` if the other membership cannot be resolved, e.g. a
   dangling row after account deletion)
 
@@ -84,7 +84,9 @@ def _display_name_for_viewer(
         .where(RoomMember.room_id == room.id, RoomMember.user_id != viewer_id)
         .limit(1)
     ).first()
-    return other.username if other else room.name
+    if not other:
+        return room.name
+    return f"{other.username} ({other.email})"
 ```
 
 ### Conversion helper
