@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
-import type { RoomCreate, RoomPublic } from "../lib/types";
+import type { RoomCreate, RoomInvitationPublic, RoomPublic } from "../lib/types";
 
 export function useMyRooms() {
   return useQuery<RoomPublic[]>({
@@ -69,5 +69,36 @@ export function useRoomDetail(roomId: string | null | undefined) {
     queryFn: () => api.get<RoomPublic>(`/api/rooms/${roomId}`),
     retry: false,
     enabled: !!roomId,
+  });
+}
+
+export function useMyRoomInvitations() {
+  return useQuery<RoomInvitationPublic[]>({
+    queryKey: ["rooms", "invitations", "mine"],
+    queryFn: () => api.get<RoomInvitationPublic[]>("/api/rooms/invitations/mine"),
+    retry: false,
+  });
+}
+
+export function useAcceptRoomInvitation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (invitationId: string) =>
+      api.post<void>(`/api/rooms/invitations/${invitationId}/accept`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rooms", "invitations", "mine"] });
+      qc.invalidateQueries({ queryKey: ["rooms", "mine"] });
+    },
+  });
+}
+
+export function useDeclineRoomInvitation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (invitationId: string) =>
+      api.post<void>(`/api/rooms/invitations/${invitationId}/decline`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rooms", "invitations", "mine"] });
+    },
   });
 }

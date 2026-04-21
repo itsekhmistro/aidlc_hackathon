@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SidebarLeft from "../components/SidebarLeft";
 import { api } from "../lib/api";
-import type { FriendshipPublic, RoomPublic } from "../lib/types";
+import type { FriendshipPublic, RoomInvitationPublic, RoomPublic } from "../lib/types";
 
 vi.mock("../lib/api");
 const mockApi = vi.mocked(api);
@@ -55,14 +55,31 @@ function renderSidebar(initialPath: string) {
   );
 }
 
+function invite(overrides: Partial<RoomInvitationPublic> = {}): RoomInvitationPublic {
+  return {
+    id: "inv-1",
+    room_id: "r-9",
+    room_name: "secret-room",
+    invited_by_id: "u-2",
+    invited_by_username: "alice",
+    invited_user_id: "u-1",
+    invited_username: "me",
+    created_at: "",
+    accepted_at: null,
+    ...overrides,
+  };
+}
+
 function stubApi({
   friends = [friend()],
   rooms = [room()],
   requests = [] as FriendshipPublic[],
+  roomInvites = [] as RoomInvitationPublic[],
 }: {
   friends?: FriendshipPublic[];
   rooms?: RoomPublic[];
   requests?: FriendshipPublic[];
+  roomInvites?: RoomInvitationPublic[];
 } = {}) {
   mockApi.get = vi.fn(async (path: string) => {
     if (path === "/api/auth/me")
@@ -75,6 +92,7 @@ function stubApi({
     if (path === "/api/friends") return friends as unknown as never;
     if (path === "/api/friends/requests/incoming") return requests as unknown as never;
     if (path === "/api/rooms/mine") return rooms as unknown as never;
+    if (path === "/api/rooms/invitations/mine") return roomInvites as unknown as never;
     return [] as unknown as never;
   });
   mockApi.post = vi.fn().mockResolvedValue(undefined);
@@ -154,5 +172,51 @@ describe("SidebarLeft accordion", () => {
       "false",
     );
     expect(screen.queryByText("general")).toBeNull();
+  });
+});
+
+describe("SidebarLeft room invitations", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("does not render a Room invites section when there are none", async () => {
+    stubApi({ roomInvites: [] });
+    renderSidebar("/chat");
+    await waitFor(() => {
+      expect(screen.getByText("general")).toBeVisible();
+    });
+    expect(screen.queryByText(/room invites/i)).toBeNull();
+  });
+
+  it("shows pending room invites with inviter and room name", async () => {
+    stubApi({ roomInvites: [invite()] });
+    renderSidebar("/chat");
+
+    await waitFor(() => {
+      expect(screen.getByText(/room invites \(1\)/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText("alice")).toBeInTheDocument();
+    expect(screen.getByText("#secret-room")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /accept invitation to secret-room/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /decline invitation to secret-room/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("lists multiple invites with the correct count", async () => {
+    stubApi({
+      roomInvites: [
+        invite(),
+        invite({ id: "inv-2", room_id: "r-10", room_name: "ops", invited_by_username: "dave" }),
+      ],
+    });
+    renderSidebar("/chat");
+
+    await waitFor(() => {
+      expect(screen.getByText(/room invites \(2\)/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText("#secret-room")).toBeInTheDocument();
+    expect(screen.getByText("#ops")).toBeInTheDocument();
   });
 });

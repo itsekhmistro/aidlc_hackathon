@@ -65,8 +65,11 @@ export interface RoomBanPublic {
 export interface RoomInvitationPublic {
   id: string;
   room_id: string;
+  room_name: string;
   invited_by_id: string;
+  invited_by_username: string;
   invited_user_id: string;
+  invited_username: string;
   created_at: string;
   accepted_at: string | null;
 }
@@ -237,9 +240,7 @@ export interface WsRoomDeleted extends WsEventBase {
 
 export interface WsRoomInvitation extends WsEventBase {
   type: "room.invitation";
-  room_id: string;
-  room_name: string;
-  invited_by: UserPublic;
+  invitation: RoomInvitationPublic;
 }
 
 // Server → Client: Friends

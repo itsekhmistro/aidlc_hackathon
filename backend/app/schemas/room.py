@@ -49,8 +49,11 @@ class RoomBanPublic(SQLModel):
 class RoomInvitationPublic(SQLModel):
     id: uuid.UUID
     room_id: uuid.UUID
+    room_name: str
     invited_by_id: uuid.UUID
+    invited_by_username: str
     invited_user_id: uuid.UUID
+    invited_username: str
     created_at: datetime
     accepted_at: datetime | None
 

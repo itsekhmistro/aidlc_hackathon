@@ -4,15 +4,17 @@ import AddFriendModal from "./AddFriendModal";
 import ContactRow from "./ContactRow";
 import CreateRoomForm from "./CreateRoomForm";
 import RequestRow from "./RequestRow";
+import RoomInviteRow from "./RoomInviteRow";
 import RoomRow from "./RoomRow";
 import { useFriendRequests, useFriends } from "../hooks/useFriends";
-import { useMyRooms } from "../hooks/useRooms";
+import { useMyRoomInvitations, useMyRooms } from "../hooks/useRooms";
 import { clearUnread } from "../lib/unreadStore";
 import { api } from "../lib/api";
 
 export default function SidebarLeft() {
   const { data: friends = [], isError: friendsError } = useFriends();
   const { data: requests = [] } = useFriendRequests();
+  const { data: roomInvites = [] } = useMyRoomInvitations();
   const { data: rooms = [], isError: roomsError } = useMyRooms();
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
@@ -68,6 +70,18 @@ export default function SidebarLeft() {
           </p>
           {requests.map((req) => (
             <RequestRow key={req.id} req={req} />
+          ))}
+        </div>
+      )}
+
+      {/* Incoming room invitations */}
+      {roomInvites.length > 0 && (
+        <div className="px-3 pt-3">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-1 mb-1">
+            Room invites ({roomInvites.length})
+          </p>
+          {roomInvites.map((inv) => (
+            <RoomInviteRow key={inv.id} invite={inv} />
           ))}
         </div>
       )}

@@ -60,6 +60,8 @@ function AppWebSocket() {
         qc.invalidateQueries({ queryKey: ["messages", event.room_id] });
       } else if (event.type === "friend.request_received") {
         qc.invalidateQueries({ queryKey: ["friends", "requests"] });
+      } else if (event.type === "room.invitation") {
+        qc.invalidateQueries({ queryKey: ["rooms", "invitations", "mine"] });
       } else if (event.type === "friend.accepted") {
         qc.invalidateQueries({ queryKey: ["friends"] });
       } else if (event.type === "friend.removed") {

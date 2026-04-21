@@ -59,7 +59,8 @@ export default function InvitationsTab({ roomId }: Props) {
             invites.map((inv) => (
               <div key={inv.id} className="flex items-center gap-2 py-2 text-sm">
                 <span className="flex-1 text-xs text-gray-600">
-                  id {inv.invited_user_id.slice(0, 8)} ·{" "}
+                  <span className="font-medium text-gray-800">{inv.invited_username}</span>
+                  {" · "}
                   {new Date(inv.created_at).toLocaleDateString()}
                 </span>
                 <button

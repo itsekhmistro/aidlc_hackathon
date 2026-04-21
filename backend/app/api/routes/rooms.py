@@ -105,6 +105,23 @@ async def _broadcast_room_event(session, room_id: uuid.UUID, event: dict[str, An
     )
 
 
+def _build_invitation_public(session, inv: RoomInvitation) -> RoomInvitationPublic:
+    room = session.get(Room, inv.room_id)
+    inviter = session.get(User, inv.invited_by_id)
+    invitee = session.get(User, inv.invited_user_id)
+    return RoomInvitationPublic(
+        id=inv.id,
+        room_id=inv.room_id,
+        room_name=room.name if room else "",
+        invited_by_id=inv.invited_by_id,
+        invited_by_username=inviter.username if inviter else "",
+        invited_user_id=inv.invited_user_id,
+        invited_username=invitee.username if invitee else "",
+        created_at=inv.created_at,
+        accepted_at=inv.accepted_at,
+    )
+
+
 def _build_member_public(session, member: RoomMember) -> RoomMemberPublic:
     user = session.get(User, member.user_id)
     live = presence_manager.compute_status(member.user_id)
@@ -197,7 +214,22 @@ def my_invitations(current_user: CookieCurrentUser, session: SessionDep) -> list
             RoomInvitation.accepted_at.is_(None),  # type: ignore[attr-defined]
         )
     ).all()
-    return list(rows)
+    return [_build_invitation_public(session, inv) for inv in rows]
+
+
+@router.post("/invitations/{invitation_id}/decline", status_code=status.HTTP_204_NO_CONTENT)
+def decline_invitation(invitation_id: uuid.UUID, current_user: CookieCurrentUser, session: SessionDep) -> None:
+    inv = session.exec(
+        select(RoomInvitation).where(
+            RoomInvitation.id == invitation_id,
+            RoomInvitation.invited_user_id == current_user.id,
+            RoomInvitation.accepted_at.is_(None),  # type: ignore[attr-defined]
+        )
+    ).first()
+    if not inv:
+        raise HTTPException(status_code=404, detail="Invitation not found")
+    session.delete(inv)
+    session.commit()
 
 
 @router.post("/invitations/{invitation_id}/accept", status_code=status.HTTP_204_NO_CONTENT)
@@ -515,7 +547,7 @@ async def invite_user(room_id: uuid.UUID, current_user: CookieCurrentUser, sessi
         )
     ).first()
     if existing:
-        return existing
+        return _build_invitation_public(session, existing)
 
     inv = RoomInvitation(
         room_id=room_id,
@@ -526,18 +558,12 @@ async def invite_user(room_id: uuid.UUID, current_user: CookieCurrentUser, sessi
     session.commit()
     session.refresh(inv)
 
+    public = _build_invitation_public(session, inv)
     await presence_manager.send_to_user(target_user.id, {
         "type": "room.invitation",
-        "room_id": str(room_id),
-        "room_name": room.name,
-        "invited_by": {
-            "id": str(current_user.id),
-            "username": current_user.username,
-            "email": current_user.email,
-            "created_at": current_user.created_at.isoformat(),
-        },
+        "invitation": public.model_dump(mode="json"),
     })
-    return inv
+    return public
 
 
 @router.get("/{room_id}/invitations", response_model=list[RoomInvitationPublic])
@@ -551,7 +577,7 @@ def list_invitations(room_id: uuid.UUID, current_user: CookieCurrentUser, sessio
             RoomInvitation.accepted_at.is_(None),  # type: ignore[attr-defined]
         )
     ).all()
-    return list(rows)
+    return [_build_invitation_public(session, inv) for inv in rows]
 
 
 @router.delete("/{room_id}/invitations/{invitation_id}", status_code=status.HTTP_204_NO_CONTENT)

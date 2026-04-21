@@ -77,8 +77,11 @@ describe("useRoomInvitations", () => {
       {
         id: "inv-1",
         room_id: "room-1",
+        room_name: "room-1-name",
         invited_by_id: "u-1",
+        invited_by_username: "alice",
         invited_user_id: "u-3",
+        invited_username: "bob",
         created_at: "2026-04-20T10:00:00Z",
         accepted_at: null,
       },
@@ -152,8 +155,11 @@ describe("admin mutations", () => {
     const invite: RoomInvitationPublic = {
       id: "inv-1",
       room_id: "room-1",
+      room_name: "room-1-name",
       invited_by_id: "u-1",
+      invited_by_username: "alice",
       invited_user_id: "u-3",
+      invited_username: "bob",
       created_at: "2026-04-20T10:00:00Z",
       accepted_at: null,
     };

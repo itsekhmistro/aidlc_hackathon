@@ -581,6 +581,133 @@ def test_list_invitations_as_non_admin_returns_403(client: TestClient):
     assert client.get(f"/api/rooms/{room['id']}/invitations").status_code == 403
 
 
+def test_my_invitations_include_room_name_and_inviter(client: TestClient):
+    _auth(client, "inviteowner")
+    room = _create_room(client, "named-invite-room", "private")
+
+    client.cookies.clear()
+    _auth(client, "nameduser")
+
+    client.cookies.clear()
+    _login(client, "inviteowner")
+    client.post(f"/api/rooms/{room['id']}/invitations", json={"username": "nameduser"})
+
+    client.cookies.clear()
+    _login(client, "nameduser")
+    invites = client.get("/api/rooms/invitations/mine").json()
+    assert len(invites) == 1
+    assert invites[0]["room_name"] == "named-invite-room"
+    assert invites[0]["invited_by_username"] == "inviteowner"
+    assert invites[0]["invited_username"] == "nameduser"
+
+
+def test_decline_invitation_as_invitee_returns_204(client: TestClient):
+    _auth(client, "owner")
+    room = _create_room(client, "decline-invite-room", "private")
+
+    client.cookies.clear()
+    _auth(client, "declineinvitee")
+
+    client.cookies.clear()
+    _login(client, "owner")
+    invite = client.post(
+        f"/api/rooms/{room['id']}/invitations", json={"username": "declineinvitee"}
+    ).json()
+
+    client.cookies.clear()
+    _login(client, "declineinvitee")
+    r = client.post(f"/api/rooms/invitations/{invite['id']}/decline")
+    assert r.status_code == 204
+
+    # Invitee's "mine" list is now empty; invitee did NOT become a member.
+    assert client.get("/api/rooms/invitations/mine").json() == []
+    r2 = client.get(f"/api/rooms/{room['id']}")
+    assert r2.status_code == 403  # private room, still not a member
+
+
+def test_decline_invitation_wrong_user_returns_404(client: TestClient):
+    _auth(client, "owner")
+    room = _create_room(client, "decline-wrong-room", "private")
+
+    client.cookies.clear()
+    _auth(client, "realdeclinee")
+
+    client.cookies.clear()
+    _login(client, "owner")
+    invite = client.post(
+        f"/api/rooms/{room['id']}/invitations", json={"username": "realdeclinee"}
+    ).json()
+
+    client.cookies.clear()
+    _auth(client, "declineinterloper")
+    r = client.post(f"/api/rooms/invitations/{invite['id']}/decline")
+    assert r.status_code == 404
+
+
+def test_decline_invitation_unauthenticated_returns_401(client: TestClient):
+    r = client.post(f"/api/rooms/invitations/{uuid.uuid4()}/decline")
+    assert r.status_code == 401
+
+
+def test_decline_invitation_after_accept_returns_404(client: TestClient):
+    _auth(client, "owner")
+    room = _create_room(client, "decline-after-accept-room", "private")
+
+    client.cookies.clear()
+    _auth(client, "postaccept")
+
+    client.cookies.clear()
+    _login(client, "owner")
+    invite = client.post(
+        f"/api/rooms/{room['id']}/invitations", json={"username": "postaccept"}
+    ).json()
+
+    client.cookies.clear()
+    _login(client, "postaccept")
+    assert client.post(f"/api/rooms/invitations/{invite['id']}/accept").status_code == 204
+    # Same user tries to decline an already-accepted invitation.
+    assert client.post(f"/api/rooms/invitations/{invite['id']}/decline").status_code == 404
+
+
+def test_invite_emits_room_invitation_ws_event_with_enriched_payload(client: TestClient, monkeypatch):
+    """The WS payload the frontend subscribes to must carry the full invitation object."""
+    import asyncio
+
+    from app.api.routes import rooms as rooms_module
+
+    captured: list[tuple] = []
+
+    async def fake_send(user_id, payload):
+        captured.append((user_id, payload))
+
+    monkeypatch.setattr(rooms_module.presence_manager, "send_to_user", fake_send)
+
+    _auth(client, "wsowner")
+    room = _create_room(client, "ws-invite-room", "private")
+
+    client.cookies.clear()
+    _auth(client, "wsinvitee")
+
+    client.cookies.clear()
+    _login(client, "wsowner")
+    r = client.post(f"/api/rooms/{room['id']}/invitations", json={"username": "wsinvitee"})
+    assert r.status_code == 201
+
+    # Exactly one WS event to the invitee.
+    invitee_events = [e for e in captured if e[1].get("type") == "room.invitation"]
+    assert len(invitee_events) == 1
+    _, payload = invitee_events[0]
+    assert payload["type"] == "room.invitation"
+    assert "invitation" in payload
+    inv = payload["invitation"]
+    assert inv["room_name"] == "ws-invite-room"
+    assert inv["invited_by_username"] == "wsowner"
+    assert inv["invited_username"] == "wsinvitee"
+    assert inv["accepted_at"] is None
+    # silence "unused-coroutine" warning if fake_send is not awaited directly
+    _ = asyncio
+
+
 # ─── DELETE /api/rooms/{room_id}/invitations/{invitation_id} ─────────────────
 
 

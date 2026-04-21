@@ -2,9 +2,16 @@ import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi, describe, it, expect, beforeEach } from "vitest";
-import { useMyRooms, usePersonalRoom, usePublicRooms } from "../hooks/useRooms";
+import {
+  useAcceptRoomInvitation,
+  useDeclineRoomInvitation,
+  useMyRoomInvitations,
+  useMyRooms,
+  usePersonalRoom,
+  usePublicRooms,
+} from "../hooks/useRooms";
 import { api } from "../lib/api";
-import type { RoomPublic } from "../lib/types";
+import type { RoomInvitationPublic, RoomPublic } from "../lib/types";
 
 vi.mock("../lib/api");
 const mockApi = vi.mocked(api);
@@ -178,5 +185,109 @@ describe("usePersonalRoom", () => {
     await waitFor(() => expect(result.current.isError).toBe(true));
 
     expect((result.current.error as Error).message).toBe("Not found");
+  });
+});
+
+const mockInvitation: RoomInvitationPublic = {
+  id: "inv-1",
+  room_id: "room-1",
+  room_name: "secret-room",
+  invited_by_id: "u-1",
+  invited_by_username: "alice",
+  invited_user_id: "u-2",
+  invited_username: "bob",
+  created_at: "2026-04-21T10:00:00Z",
+  accepted_at: null,
+};
+
+describe("useMyRoomInvitations", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("fetches /api/rooms/invitations/mine", async () => {
+    mockApi.get = vi.fn().mockResolvedValueOnce([mockInvitation]);
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useMyRoomInvitations(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockApi.get).toHaveBeenCalledWith("/api/rooms/invitations/mine");
+    expect(result.current.data).toHaveLength(1);
+    expect(result.current.data?.[0].room_name).toBe("secret-room");
+    expect(result.current.data?.[0].invited_by_username).toBe("alice");
+  });
+
+  it("returns [] when no invitations", async () => {
+    mockApi.get = vi.fn().mockResolvedValueOnce([]);
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useMyRoomInvitations(), { wrapper });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data).toEqual([]);
+  });
+});
+
+describe("useAcceptRoomInvitation", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("POSTs to /api/rooms/invitations/:id/accept", async () => {
+    mockApi.post = vi.fn().mockResolvedValue(undefined);
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useAcceptRoomInvitation(), { wrapper });
+
+    act(() => { result.current.mutate("inv-1"); });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockApi.post).toHaveBeenCalledWith("/api/rooms/invitations/inv-1/accept");
+  });
+
+  it("invalidates invitations list and rooms/mine on success", async () => {
+    mockApi.post = vi.fn().mockResolvedValue(undefined);
+    const { wrapper, qc } = makeWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useAcceptRoomInvitation(), { wrapper });
+
+    act(() => { result.current.mutate("inv-1"); });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["rooms", "invitations", "mine"] });
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["rooms", "mine"] });
+  });
+
+  it("surfaces API errors", async () => {
+    mockApi.post = vi.fn().mockRejectedValue(new Error("banned"));
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useAcceptRoomInvitation(), { wrapper });
+
+    act(() => { result.current.mutate("inv-1"); });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect((result.current.error as Error).message).toBe("banned");
+  });
+});
+
+describe("useDeclineRoomInvitation", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("POSTs to /api/rooms/invitations/:id/decline", async () => {
+    mockApi.post = vi.fn().mockResolvedValue(undefined);
+    const { wrapper } = makeWrapper();
+    const { result } = renderHook(() => useDeclineRoomInvitation(), { wrapper });
+
+    act(() => { result.current.mutate("inv-2"); });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(mockApi.post).toHaveBeenCalledWith("/api/rooms/invitations/inv-2/decline");
+  });
+
+  it("invalidates invitations list but not rooms/mine on success", async () => {
+    mockApi.post = vi.fn().mockResolvedValue(undefined);
+    const { wrapper, qc } = makeWrapper();
+    const spy = vi.spyOn(qc, "invalidateQueries");
+    const { result } = renderHook(() => useDeclineRoomInvitation(), { wrapper });
+
+    act(() => { result.current.mutate("inv-2"); });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(spy).toHaveBeenCalledWith({ queryKey: ["rooms", "invitations", "mine"] });
+    expect(spy).not.toHaveBeenCalledWith({ queryKey: ["rooms", "mine"] });
   });
 });
