@@ -1,8 +1,48 @@
 # Release Notes
 
 Consolidated changelog for the hackathon chat app. Conventions: MAJOR.MINOR.PATCH,
-dates in UTC, references to `specs/current-state.md` for the authoritative
-shipped-state audit and to `specs/*.md` for per-task specs.
+dates in UTC, references to [`specs/current-state.md`](./current-state.md) for
+the authoritative shipped-state audit, to [`specs/CHANGELOG.md`](./CHANGELOG.md)
+for the one-screen version summary, and to `specs/*.md` for per-task specs.
+
+---
+
+## `1.1.2` — Hackathon submission packaging
+**Date:** 2026-04-21
+**Commit:** tag `1.1.2` on `greenbase`
+**Scope:** Final hackathon submission polish. No functional code changes;
+ship surface is identical to `1.1.1`.
+
+### Highlights
+
+- New [`specs/CHANGELOG.md`](./CHANGELOG.md) — one-screen version history
+  from `1.0.0-rc` to `1.1.2`, newest first. Intended as the first file a
+  hackathon reviewer opens.
+- `README.md` refresh:
+  - Test counts corrected to **271 pytest · 170 vitest · 12 Playwright
+    cases across 9 spec files** (was showing a stale 174/98/10).
+  - New "Project docs" block linking the three highest-signal files
+    (`CHANGELOG.md`, `RELEASE-NOTES.md`, `current-state.md`).
+  - Specs index now links every file under `specs/` (previously missed
+    `13-jabber-design.md`, `15-dm-display-names.md`,
+    `16-nfr-load-testing.md`, `JabberIntegrationResults.md`, and the
+    original `Initial-goal-definition.md`).
+- `specs/current-state.md` bottom-line bumped to include `1.1.2`; Wave 9
+  recorded as the docs-only release.
+
+### Backend / Frontend
+
+Nothing. `docker compose up --build -d` from 1.1.1 yields an identical
+runtime. No migration changes, no schema changes, no new env vars.
+
+### Breaking changes
+
+None.
+
+### Upgrade notes
+
+Documentation-only tag. No deployment action required; reviewers can
+check out the `1.1.2` tag directly for the cleanest submission snapshot.
 
 ---
 

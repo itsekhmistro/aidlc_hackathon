@@ -15,7 +15,10 @@ Full-stack chat app built end-to-end with autonomous AI agents. Three-person tea
 
 ```bash
 cp .env.example .env
-docker compose up --build
+# OptionA. Without jabber
+#docker compose up --build
+# OptionB. With jabber.
+docker compose --profile jabber up -d
 ```
 
 - Frontend → http://localhost:5173
@@ -55,7 +58,7 @@ cd frontend && npx playwright install chromium   # one-time
 cd frontend && npx playwright test --project=chromium
 ```
 
-Current coverage: **174 pytest · 98 vitest · 10 Playwright e2e**.
+Current coverage: **271 pytest · 170 vitest · 12 Playwright test cases across 9 spec files**. Five NFR load-test scenarios all **PASS** — see [`loadtests/RESULTS.md`](loadtests/RESULTS.md).
 
 ## Agents (slash commands)
 
@@ -72,12 +75,38 @@ Six pre-built agents for the hackathon loop — see `.claude/commands/` for the 
 
 Typical flow: `/lead` → `/architect` → (`/backend` ∥ `/frontend`) → `/docker` → `/qa`.
 
-## Specs
+## Project docs
+
+For hackathon reviewers, the three highest-signal files:
+
+- [`specs/CHANGELOG.md`](specs/CHANGELOG.md) — one-screen version
+  history (`1.0.0-rc` → `1.1.2`).
+- [`specs/RELEASE-NOTES.md`](specs/RELEASE-NOTES.md) — full per-release
+  notes.
+- [`specs/current-state.md`](specs/current-state.md) — spec-by-spec
+  audit against `specs/Initial-goal-definition.md` (16/16 requirements
+  + advanced Jabber shipped).
 
 Per-feature design docs live in `specs/`:
 
-- `00-overview.md` · `01-architecture.md` · `02-auth.md` · `03-presence.md`
-- `04-contacts.md` · `05-rooms.md` · `06-messaging.md` · `07-attachments.md`
-- `08-notifications.md` · `09-frontend-layout.md` · `10-admin-ui.md`
-- `11-websocket-protocol.md` · `12-infrastructure.md` · `13-jabber.md`
-- `14-post-demo-polish.md` · `current-state.md`
+- [`00-overview.md`](specs/00-overview.md) ·
+  [`01-architecture.md`](specs/01-architecture.md) ·
+  [`02-auth.md`](specs/02-auth.md) ·
+  [`03-presence.md`](specs/03-presence.md)
+- [`04-contacts.md`](specs/04-contacts.md) ·
+  [`05-rooms.md`](specs/05-rooms.md) ·
+  [`06-messaging.md`](specs/06-messaging.md) ·
+  [`07-attachments.md`](specs/07-attachments.md)
+- [`08-notifications.md`](specs/08-notifications.md) ·
+  [`09-frontend-layout.md`](specs/09-frontend-layout.md) ·
+  [`10-admin-ui.md`](specs/10-admin-ui.md)
+- [`11-websocket-protocol.md`](specs/11-websocket-protocol.md) ·
+  [`12-infrastructure.md`](specs/12-infrastructure.md) ·
+  [`13-jabber-design.md`](specs/13-jabber-design.md) ·
+  [`13-jabber.md`](specs/13-jabber.md) ·
+  [`JabberIntegrationResults.md`](specs/JabberIntegrationResults.md)
+- [`14-post-demo-polish.md`](specs/14-post-demo-polish.md) ·
+  [`15-dm-display-names.md`](specs/15-dm-display-names.md) ·
+  [`16-nfr-load-testing.md`](specs/16-nfr-load-testing.md)
+- Reference: [`Initial-goal-definition.md`](specs/Initial-goal-definition.md)
+  (original brief).

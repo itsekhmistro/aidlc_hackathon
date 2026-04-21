@@ -3,9 +3,11 @@
 
   Bottom line: **16 of 16 core requirements + advanced Jabber/XMPP integration
   (TASK-13) + NFR load-testing (TASK-16) shipped**. Releases tagged **`1.0.0`**
-  (2026-04-21, core scope), **`1.1.0`** (2026-04-21, Jabber/XMPP), and
-  **`1.1.1`** (2026-04-21, invitee-side room-invitation UI fix) on
-  `greenbase`.
+  (2026-04-21, core scope), **`1.1.0`** (2026-04-21, Jabber/XMPP),
+  **`1.1.1`** (2026-04-21, invitee-side room-invitation UI fix), and
+  **`1.1.2`** (2026-04-21, final submission packaging — `specs/CHANGELOG.md`
+  + README refresh, no code changes) on `greenbase`. One-screen version
+  history lives at [`specs/CHANGELOG.md`](./CHANGELOG.md).
 
   Section-by-section coverage
 
@@ -230,7 +232,7 @@
   Smoke coverage: `e2e/smoke.spec.ts` walks `/chat`, `/rooms`, `/sessions`, `/profile` — no uncaught console errors, exactly one "Current session" pill.
 
   ---
-  Final verification (2026-04-21, v1.1.1 — Wave 6 + Wave 7 + Wave 8)
+  Final verification (2026-04-21, v1.1.2 — Wave 6 + Wave 7 + Wave 8 + Wave 9)
 
   - Backend: **271** pytest passing (1 pre-existing skip) — was 264 at
     `1.1.0`; Wave 8 added +7 (decline endpoint auth/edge cases, WS
@@ -248,9 +250,11 @@
   - No open 🔴 blockers
 
   Branch: `greenbase` · release tags: `1.0.0` (commit `2cfb619`, core),
-  `1.1.0` (commit `6b0f6fe`, Jabber/XMPP), and `1.1.1` (invitee-side
-  room-invitation UI). Wave 6 lives between `1.0.0` and `1.1.0`;
-  Wave 7 is the `1.1.0` tag; Wave 8 is the `1.1.1` tag.
+  `1.1.0` (commit `6b0f6fe`, Jabber/XMPP), `1.1.1` (invitee-side
+  room-invitation UI), and `1.1.2` (submission packaging). Wave 6 lives
+  between `1.0.0` and `1.1.0`; Wave 7 is the `1.1.0` tag; Wave 8 is the
+  `1.1.1` tag; Wave 9 is the `1.1.2` tag (docs-only: new
+  `specs/CHANGELOG.md`, refreshed README, re-scoped submission docs).
 
   ---
   Deferred (post-demo)
