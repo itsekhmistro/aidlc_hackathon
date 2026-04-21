@@ -11,17 +11,14 @@ vi.mock("../hooks/useAuth", () => ({
 vi.mock("../lib/api");
 
 import JabberDashboard from "../pages/admin/JabberDashboard";
+import JabberFederation from "../pages/admin/JabberFederation";
 import TopNav from "../components/TopNav";
 import { useCurrentUser, useLogout } from "../hooks/useAuth";
 import { getJabberFederation, getJabberStatus } from "../lib/api";
-import type { JabberStatus, UserPublic } from "../lib/types";
+import type { JabberFederation as JabberFederationData, JabberStatus, UserPublic } from "../lib/types";
 
 const mockGetJabberStatus = vi.mocked(getJabberStatus);
 const mockGetJabberFederation = vi.mocked(getJabberFederation);
-
-// Keep unused federation mock referenced so TS/ESLint don't flag it — and so
-// future tests that cover JabberFederation can drop in without re-importing.
-void mockGetJabberFederation;
 
 function adminUser(overrides: Partial<UserPublic> = {}): UserPublic {
   return {
@@ -121,6 +118,91 @@ describe("JabberDashboard", () => {
     expect(mockGetJabberStatus).not.toHaveBeenCalled();
     // The page returns <Navigate /> — server_host should never render
     expect(screen.queryByText("server-a.local")).not.toBeInTheDocument();
+  });
+});
+
+// ─── JabberFederation ────────────────────────────────────────────────────────
+
+describe("JabberFederation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function mountPage() {
+    return render(
+      <QueryClientProvider client={newQueryClient()}>
+        <MemoryRouter>
+          <JabberFederation />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it("renders remotes and recent messages for an admin", async () => {
+    vi.mocked(useCurrentUser).mockReturnValue({
+      data: adminUser(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useCurrentUser>);
+
+    const payload: JabberFederationData = {
+      remotes: [
+        { server: "fresh.example", direction: "both", message_count: 42, last_active_seconds_ago: 5 },
+        { server: "stale.example", direction: "out", message_count: 3, last_active_seconds_ago: 600 },
+      ],
+      recent: [
+        { ts: new Date().toISOString(), from_jid: "alice@server-a.local", to_jid: "bob@fresh.example", preview: "hi bob" },
+        { ts: new Date().toISOString(), from_jid: "carol@stale.example", to_jid: "alice@server-a.local", preview: "sup" },
+      ],
+    };
+    mockGetJabberFederation.mockResolvedValue(payload);
+
+    mountPage();
+
+    await waitFor(() => {
+      expect(screen.getByText("fresh.example")).toBeInTheDocument();
+    });
+    expect(mockGetJabberFederation).toHaveBeenCalled();
+    expect(screen.getByText("stale.example")).toBeInTheDocument();
+    // Preview bodies visible in the recent-list
+    expect(screen.getByText("hi bob")).toBeInTheDocument();
+    expect(screen.getByText("sup")).toBeInTheDocument();
+    // Both JIDs surface in the "from → to" stanzas. alice shows up twice
+    // (once as "from" in row 1, once as "to" in row 2) — assert via getAllByText.
+    expect(screen.getAllByText("alice@server-a.local").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("bob@fresh.example")).toBeInTheDocument();
+    expect(screen.getByText("carol@stale.example")).toBeInTheDocument();
+    // Direction badge text (lowercased by the component)
+    expect(screen.getByText("both")).toBeInTheDocument();
+    expect(screen.getByText("out")).toBeInTheDocument();
+  });
+
+  it("shows empty-state messages when there are no remotes or recent messages", async () => {
+    vi.mocked(useCurrentUser).mockReturnValue({
+      data: adminUser(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useCurrentUser>);
+
+    mockGetJabberFederation.mockResolvedValue({ remotes: [], recent: [] });
+
+    mountPage();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("jabber-remotes-empty")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("jabber-recent-empty")).toBeInTheDocument();
+  });
+
+  it("redirects non-admin users and never triggers the fetch", async () => {
+    vi.mocked(useCurrentUser).mockReturnValue({
+      data: regularUser(),
+      isLoading: false,
+    } as unknown as ReturnType<typeof useCurrentUser>);
+    mockGetJabberFederation.mockResolvedValue({ remotes: [], recent: [] });
+
+    mountPage();
+
+    expect(mockGetJabberFederation).not.toHaveBeenCalled();
+    expect(screen.queryByText("Federation traffic")).not.toBeInTheDocument();
   });
 });
 
