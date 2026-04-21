@@ -1,0 +1,3 @@
+# Placeholder so the `jabber/modules/` directory is committed. Future Lua
+# modules (e.g. mod_fastapi_webhook.lua) land here and are mounted into
+# /usr/lib/prosody/modules-custom on the Prosody containers.

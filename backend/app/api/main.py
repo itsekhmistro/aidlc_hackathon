@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    admin_jabber,
     attachments,
     auth,
     friends,
@@ -15,6 +16,7 @@ from app.api.routes import (
     user_bans,
     users,
     ws,
+    xmpp_webhook,
 )
 
 api_router = APIRouter()
@@ -36,3 +38,5 @@ api_router.include_router(user_bans.router)
 api_router.include_router(presence.router)
 api_router.include_router(unread.router)
 api_router.include_router(personal.router)
+api_router.include_router(admin_jabber.router)
+api_router.include_router(xmpp_webhook.router)

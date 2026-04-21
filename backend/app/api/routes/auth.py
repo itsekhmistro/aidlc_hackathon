@@ -1,4 +1,6 @@
+import asyncio
 import hashlib
+import logging
 import os
 import shutil
 from datetime import datetime, timezone
@@ -10,6 +12,11 @@ from sqlmodel import select
 from app.api.deps import CookieCurrentUser, SessionDep
 from app.core.config import settings
 from app.core.security import create_session_token, get_password_hash, verify_password
+from app.core.xmpp import (
+    change_xmpp_password,
+    disable_xmpp_user,
+    provision_xmpp_user,
+)
 from app.models.message import Attachment, Message, ReadReceipt
 from app.models.room import Room, RoomBan, RoomInvitation, RoomMember
 from app.models.social import Friendship, UserBan
@@ -23,7 +30,41 @@ from app.schemas.user import (
     UserPublic,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+
+def _fire_and_forget_xmpp(coro, *, action: str, username: str) -> None:
+    """Dispatch an XMPP bridge coroutine without blocking the HTTP response.
+
+    XMPP_ENABLED=False turns every bridge call into a no-op True, so we
+    skip scheduling entirely to avoid per-request overhead for deployments
+    that aren't running Prosody. The wrappers already swallow their own
+    exceptions; we also catch here to guarantee no bridge failure blocks
+    the user-facing flow.
+    """
+    if not settings.XMPP_ENABLED:
+        coro.close()
+        return
+    try:
+        loop = asyncio.get_event_loop()
+        task = loop.create_task(coro)
+
+        def _on_done(t: asyncio.Task) -> None:
+            exc = t.exception()
+            if exc:
+                logger.warning(
+                    "xmpp.%s task_exception username=%s err=%s", action, username, exc
+                )
+
+        task.add_done_callback(_on_done)
+    except RuntimeError:
+        # No running loop (sync context). Close the coroutine cleanly and
+        # log — this should be extraordinarily rare since all auth handlers
+        # run under Starlette's event loop.
+        coro.close()
+        logger.warning("xmpp.%s skipped_no_loop username=%s", action, username)
 
 
 @router.get("/me", response_model=UserPublic)
@@ -58,7 +99,7 @@ def _create_session_cookie(
 
 
 @router.post("/register", response_model=UserPublic, status_code=status.HTTP_201_CREATED)
-def register(session: SessionDep, user_in: UserCreate, response: Response, request: Request) -> User:
+async def register(session: SessionDep, user_in: UserCreate, response: Response, request: Request) -> User:
     # Username is a permanent tombstone — check across all users including deleted
     if session.exec(select(User).where(User.username == user_in.username)).first():
         raise HTTPException(status_code=422, detail="Username already taken")
@@ -84,6 +125,15 @@ def register(session: SessionDep, user_in: UserCreate, response: Response, reque
         request.client.host if request.client else None,
         False,
     )
+
+    # Mirror the account on Prosody. Fire-and-forget — XMPP down must NOT
+    # block registration (specs/13-jabber-design.md §3.3).
+    _fire_and_forget_xmpp(
+        provision_xmpp_user(user.username, user_in.password),
+        action="provision",
+        username=user.username,
+    )
+
     return user
 
 
@@ -147,7 +197,7 @@ def password_reset_request(session: SessionDep, body: PasswordResetRequest) -> d
 
 
 @router.post("/password-reset", status_code=status.HTTP_204_NO_CONTENT)
-def password_reset(session: SessionDep, body: PasswordReset) -> None:
+async def password_reset(session: SessionDep, body: PasswordReset) -> None:
     token_hash = hashlib.sha256(body.token.encode()).hexdigest()
     reset_session = session.exec(
         select(UserSession).where(
@@ -169,18 +219,34 @@ def password_reset(session: SessionDep, body: PasswordReset) -> None:
     session.add(reset_session)
     session.commit()
 
+    # Mirror the new password to Prosody. Fire-and-forget.
+    _fire_and_forget_xmpp(
+        change_xmpp_password(user.username, body.new_password),
+        action="change_password",
+        username=user.username,
+    )
+
 
 @router.patch("/password-change", status_code=status.HTTP_204_NO_CONTENT)
-def password_change(current_user: CookieCurrentUser, session: SessionDep, body: PasswordChange) -> None:
+async def password_change(
+    current_user: CookieCurrentUser, session: SessionDep, body: PasswordChange
+) -> None:
     if not verify_password(body.old_password, current_user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect current password")
     current_user.hashed_password = get_password_hash(body.new_password)
     session.add(current_user)
     session.commit()
 
+    # Mirror the new password to Prosody. Fire-and-forget.
+    _fire_and_forget_xmpp(
+        change_xmpp_password(current_user.username, body.new_password),
+        action="change_password",
+        username=current_user.username,
+    )
+
 
 @router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
-def delete_account(current_user: CookieCurrentUser, session: SessionDep, response: Response) -> None:
+async def delete_account(current_user: CookieCurrentUser, session: SessionDep, response: Response) -> None:
     uid = current_user.id
     rooms_to_remove: list[str] = []
 
@@ -248,5 +314,13 @@ def delete_account(current_user: CookieCurrentUser, session: SessionDep, respons
     # 9. Remove uploaded files from disk (after commit so DB is consistent)
     for room_id_str in rooms_to_remove:
         shutil.rmtree(os.path.join(settings.UPLOAD_DIR, room_id_str), ignore_errors=True)
+
+    # 10. Remove the Prosody account. Fire-and-forget — failure to reach
+    # Prosody must NOT leave the FastAPI account in a half-deleted state.
+    _fire_and_forget_xmpp(
+        disable_xmpp_user(current_user.username),
+        action="disable",
+        username=current_user.username,
+    )
 
     response.delete_cookie("auth_token", path="/")

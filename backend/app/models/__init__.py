@@ -10,6 +10,7 @@ from app.models.room import (
 )
 from app.models.social import Friendship, FriendshipStatus, UserBan
 from app.models.message import Attachment, Message, ReadReceipt
+from app.models.federation import FederationLog
 
 __all__ = [
     "User",
@@ -28,4 +29,5 @@ __all__ = [
     "Message",
     "Attachment",
     "ReadReceipt",
+    "FederationLog",
 ]

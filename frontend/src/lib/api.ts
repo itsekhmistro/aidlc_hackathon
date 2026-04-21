@@ -1,3 +1,5 @@
+import type { JabberFederation, JabberStatus } from "./types";
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     credentials: "include",
@@ -36,3 +38,13 @@ export const api = {
     return res.json() as Promise<T>;
   },
 };
+
+// ─── Jabber admin fetchers ───────────────────────────────────────────────────
+
+export function getJabberStatus(): Promise<JabberStatus> {
+  return api.get<JabberStatus>("/api/admin/jabber/status");
+}
+
+export function getJabberFederation(): Promise<JabberFederation> {
+  return api.get<JabberFederation>("/api/admin/jabber/federation");
+}

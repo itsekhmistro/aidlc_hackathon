@@ -68,6 +68,28 @@ export default function TopNav() {
             >
               Sessions
             </Link>
+            {me?.is_admin && (
+              <>
+                <div className="border-t border-gray-100 my-1" aria-hidden="true" />
+                <Link
+                  to="/admin/jabber"
+                  onClick={() => setOpen(false)}
+                  className="block px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                  role="menuitem"
+                >
+                  Jabber Admin
+                </Link>
+                <Link
+                  to="/admin/jabber/federation"
+                  onClick={() => setOpen(false)}
+                  className="block px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                  role="menuitem"
+                >
+                  Federation
+                </Link>
+                <div className="border-t border-gray-100 my-1" aria-hidden="true" />
+              </>
+            )}
             <button
               onClick={handleLogout}
               disabled={logout.isPending}

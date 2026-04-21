@@ -39,6 +39,7 @@ const mockUser: UserPublic = {
   username: "alice",
   email: "alice@example.com",
   created_at: "2026-04-20T10:00:00Z",
+  is_admin: false,
 };
 
 function setupApi(overrides: Partial<{ me: UserPublic; myRooms: RoomPublic[]; roomDetail: RoomPublic }> = {}) {

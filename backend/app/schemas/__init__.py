@@ -32,6 +32,16 @@ from app.schemas.user import (
     UserPublic,
     UserUpdate,
 )
+from app.schemas.jabber import (
+    JabberFederation,
+    JabberFederationMessage,
+    JabberFederationRemote,
+    JabberSession,
+    JabberStatus,
+    XmppEventEnvelope,
+    XmppFederationEvent,
+    XmppSessionEvent,
+)
 
 __all__ = [
     "UserPublic",
@@ -60,4 +70,12 @@ __all__ = [
     "FriendRequestCreate",
     "PresenceBulkRequest",
     "PresenceBulkResponse",
+    "JabberStatus",
+    "JabberSession",
+    "JabberFederation",
+    "JabberFederationRemote",
+    "JabberFederationMessage",
+    "XmppFederationEvent",
+    "XmppSessionEvent",
+    "XmppEventEnvelope",
 ]

@@ -70,9 +70,32 @@
 
   Username immutable ✅ (no PATCH for username); email/username unique ✅; frozen history after user-ban ✅ (read-only); room-delete cascade ✅.
 
-  §6 Advanced (Jabber) — ❌ not attempted (explicitly optional)
+  §6 Advanced (Jabber) — ✅ shipped post-v1.0.0 (Wave 7, 2026-04-21)
 
-  No XMPP server, no federation, no Jabber UI. Spec says "if you manage to implement requirements above quickly" — given TASK-10 landed T-24h before demo, Jabber is out of realistic scope.
+  TASK-13 landed on `greenbase`:
+  - Prosody XMPP sidecar (`prosody/prosody:0.11.9`, opt-in via
+    `--profile jabber`) + two-server federation compose
+    (`docker-compose.federation.yml`, six services: two Prosody, two backends,
+    two Postgres, shared `federation_net` with DNS aliases).
+  - FastAPI→Prosody bridge (`backend/app/core/xmpp.py`): provision on
+    register, change on password-reset + password-change, disable on
+    account-delete. Fire-and-forget; bridge failures never block the
+    user-facing endpoint.
+  - Prosody→FastAPI webhook (`POST /api/internal/xmpp/event`, shared-secret
+    token). Mounted Lua module (`jabber/modules/mod_fastapi_webhook.lua`)
+    hooks `message/bare`, `message/full`, `resource-bind`, and
+    `resource-unbind` to post federation + client-session events.
+  - Admin routes (`GET /api/admin/jabber/status`,
+    `GET /api/admin/jabber/federation`) gated by `require_admin` dep;
+    `User.is_admin` added via Alembic revision `b2c3d4e5f6a7`.
+  - Admin screens (`/admin/jabber`, `/admin/jabber/federation`) polled at
+    10 s, surfaced in `TopNav` only when `is_admin=true`.
+  - Bootstrap CLI: `uv run python -m app.scripts.make_admin <username>`.
+  - Load test: `scripts/federation_load_test.py` (slixmpp-based; default
+    50+50 clients, configurable rate/duration).
+  - Verified: 241 backend tests pass (19 new: `test_xmpp_bridge.py` +
+    `test_admin_jabber.py`); 153 vitest (4 new: `jabber.test.tsx`); TS
+    clean; production Vite build clean; both compose files validate.
 
   ---
   Spec-complete status (v1.0.0, 2026-04-21)

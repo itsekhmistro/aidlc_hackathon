@@ -38,6 +38,16 @@ services:
       SECRET_KEY: ${SECRET_KEY:-changeme}
       UPLOAD_DIR: ${UPLOAD_DIR:-/uploads}
       BACKEND_CORS_ORIGINS: ${BACKEND_CORS_ORIGINS:-'["http://localhost:5173","http://localhost:3000","http://frontend:5173"]'}
+      # TASK-13 XMPP bridge — off by default. The `prosody` service only runs
+      # under `--profile jabber`; when that profile is NOT active the backend
+      # short-circuits every xmpp wrapper (see backend/app/core/xmpp.py) so
+      # these envs are harmless.
+      XMPP_ENABLED: ${XMPP_ENABLED:-0}
+      XMPP_HOST: ${XMPP_HOST:-prosody}
+      XMPP_HTTP_PORT: ${XMPP_HTTP_PORT:-5280}
+      XMPP_DOMAIN: ${XMPP_DOMAIN:-server-a.local}
+      XMPP_ADMIN_TOKEN: ${XMPP_ADMIN_TOKEN:-dev-admin-token}
+      XMPP_WEBHOOK_TOKEN: ${XMPP_WEBHOOK_TOKEN:-dev-webhook-token}
     volumes:
       - uploads_data:/uploads
     command:
@@ -66,6 +76,43 @@ services:
       backend:
         condition: service_healthy
 
+  # TASK-13 — Prosody XMPP sidecar. Guarded by the `jabber` compose profile
+  # so v1.0.0 users running `docker compose up` get the exact same topology
+  # as before; only `docker compose --profile jabber up` spins this up.
+  prosody:
+    # Spec asked for 0.12 but that tag isn't published on docker.io/prosody/prosody
+    # as of 2026-04-21 (latest = 0.11.9). Pin to the newest available tag; bump
+    # when upstream publishes a 0.12.x image. mod_http_api contract is stable
+    # across 0.11 → 0.12 so the bridge code (backend/app/core/xmpp.py) is fine.
+    image: prosody/prosody:0.11.9
+    profiles: ["jabber"]
+    restart: unless-stopped
+    ports:
+      - "5222:5222"   # XMPP c2s (external client)
+      - "5269:5269"   # XMPP S2S (federation; unused in single-server mode)
+      - "5280:5280"   # HTTP admin API (dev only — remove in real deploy)
+    volumes:
+      - ./jabber/prosody_single.cfg.lua:/etc/prosody/prosody.cfg.lua:ro
+      - ./jabber/modules:/usr/lib/prosody/modules-custom:ro
+      - prosody_data:/var/lib/prosody
+    environment:
+      XMPP_DOMAIN: ${XMPP_DOMAIN:-server-a.local}
+      XMPP_ADMIN_TOKEN: ${XMPP_ADMIN_TOKEN:-dev-admin-token}
+      XMPP_WEBHOOK_TOKEN: ${XMPP_WEBHOOK_TOKEN:-dev-webhook-token}
+      FASTAPI_WEBHOOK_URL: "http://backend:8000/api/internal/xmpp/event"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # `prosodyctl status` exits 0 when the server is up and 1 otherwise.
+      # Run it via sh so the shell semantics are deterministic.
+      test: ["CMD-SHELL", "prosodyctl status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 volumes:
   postgres_data:
   uploads_data:
+  prosody_data:

@@ -10,6 +10,7 @@ export interface UserPublic {
   username: string;
   email: string;
   created_at: string;
+  is_admin: boolean;
 }
 
 export interface SessionPublic {
@@ -283,6 +284,43 @@ export interface WsSessionRevoked extends WsEventBase {
 
 export interface WsPong extends WsEventBase {
   type: "pong";
+}
+
+// ─── Jabber / XMPP admin ──────────────────────────────────────────────────────
+
+export interface JabberSession {
+  jid: string;
+  client: string;
+  ip: string;
+  connected_seconds: number;
+}
+
+export interface JabberStatus {
+  server_host: string;
+  uptime_seconds: number;
+  connected_clients: number;
+  s2s_links_active: number;
+  sessions: JabberSession[];
+  truncated?: boolean;
+}
+
+export interface JabberFederationRemote {
+  server: string;
+  direction: "in" | "out" | "both";
+  message_count: number;
+  last_active_seconds_ago: number;
+}
+
+export interface JabberFederationMessage {
+  ts: string;
+  from_jid: string;
+  to_jid: string;
+  preview: string | null;
+}
+
+export interface JabberFederation {
+  remotes: JabberFederationRemote[];
+  recent: JabberFederationMessage[];
 }
 
 // Discriminated union of ALL server events

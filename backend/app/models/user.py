@@ -20,6 +20,9 @@ class User(SQLModel, table=True):
     hashed_password: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     deleted_at: datetime | None = Field(default=None)
+    # Global admin flag (TASK-13). Gates the Jabber admin dashboards today.
+    # Room-level admin semantics live in room_member.role and are unaffected.
+    is_admin: bool = Field(default=False, nullable=False)
 
 
 class UserSession(SQLModel, table=True):

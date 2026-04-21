@@ -9,6 +9,8 @@ class UserPublic(SQLModel):
     username: str
     email: str
     created_at: datetime
+    # TASK-13: gates Jabber admin nav/routes on the frontend.
+    is_admin: bool = False
 
 
 class UserCreate(SQLModel):

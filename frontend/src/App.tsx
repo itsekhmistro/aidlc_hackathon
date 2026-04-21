@@ -12,6 +12,8 @@ import { setUnreadCounts, incrementUnread, clearUnread, useTotalUnread } from ".
 import { api } from "./lib/api";
 import { handleSessionRevoked } from "./lib/sessionRevoked";
 import type { ClientEvent, RoomMemberPublic, ServerEvent, UnreadCountsPublic } from "./lib/types";
+import JabberDashboard from "./pages/admin/JabberDashboard";
+import JabberFederation from "./pages/admin/JabberFederation";
 import ChatEmpty from "./pages/ChatEmpty";
 import DmChatPage from "./pages/DmChatPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
@@ -143,6 +145,8 @@ export default function App() {
             <Route path="/rooms" element={<RoomsPage />} />
             <Route path="/sessions" element={<SessionsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/admin/jabber" element={<JabberDashboard />} />
+            <Route path="/admin/jabber/federation" element={<JabberFederation />} />
           </Route>
           <Route path="*" element={<Navigate to="/chat" replace />} />
         </Route>

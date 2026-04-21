@@ -14,6 +14,7 @@ from app.core.config import settings  # noqa: E402
 # Import ALL models so they register in SQLModel.metadata before autogenerate
 from app.models import (  # noqa: F401, E402
     Attachment,
+    FederationLog,
     Friendship,
     Message,
     Presence,

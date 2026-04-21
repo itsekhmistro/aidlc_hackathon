@@ -1,0 +1,216 @@
+# Two-server XMPP federation topology — TASK-13 §4.2.
+#
+# Stand-alone compose (NOT an overlay on docker-compose.yml). Spins up six
+# services: two Postgres DBs, two FastAPI backends, two Prosody instances.
+# Only the two prosody services share `federation_net` — the S2S bus. Each
+# backend is isolated on its own `internal_*` network with its own DB.
+#
+# Usage:
+#   docker compose -f docker-compose.federation.yml up --build
+#
+# Port map (see design doc §4.2 for the full table):
+#   Server A: backend 8000, c2s 5222, s2s 5269, db (internal only)
+#   Server B: backend 8001, c2s 5322, s2s 5369, http-admin 5381, db internal
+#
+# Name resolution for S2S: each prosody service registers a network alias on
+# federation_net matching the OTHER server's VirtualHost name. That way when
+# prosody_a dials "server-b.local" the Docker embedded DNS resolves it to
+# prosody_b on federation_net, and vice versa — no extra_hosts tricks, no
+# pre-assigned IPs needed.
+
+services:
+  # ---------------------------------------------------------------- Server A
+  db_a:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hackathon_a
+    volumes:
+      - postgres_a_data:/var/lib/postgresql/data
+    networks: [internal_a]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hackathon_a"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend_a:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_SERVER: db_a
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hackathon_a
+      SECRET_KEY: ${SECRET_KEY:-changeme}
+      UPLOAD_DIR: /uploads
+      BACKEND_CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
+      # XMPP bridge points at the A-side Prosody over internal_a.
+      XMPP_ENABLED: "1"
+      XMPP_HOST: prosody_a
+      XMPP_HTTP_PORT: "5280"
+      XMPP_DOMAIN: server-a.local
+      XMPP_ADMIN_TOKEN: ${XMPP_ADMIN_TOKEN:-dev-admin-token}
+      XMPP_WEBHOOK_TOKEN: ${XMPP_WEBHOOK_TOKEN:-dev-webhook-token}
+    volumes:
+      - uploads_a_data:/uploads
+    command:
+      [
+        "sh", "-c",
+        "uv run alembic upgrade head && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --ws-ping-interval 20 --ws-ping-timeout 30"
+      ]
+    depends_on:
+      db_a:
+        condition: service_healthy
+    networks: [internal_a]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  prosody_a:
+    image: prosody/prosody:0.11.9  # see docker-compose.yml note — 0.12 isn't published
+    restart: unless-stopped
+    ports:
+      - "5222:5222"   # c2s
+      - "5269:5269"   # S2S
+      # 5280 intentionally NOT exposed — backend_a reaches it via internal_a.
+    volumes:
+      - ./jabber/prosody_a.cfg.lua:/etc/prosody/prosody.cfg.lua:ro
+      - ./jabber/modules:/usr/lib/prosody/modules-custom:ro
+      - prosody_a_data:/var/lib/prosody
+    environment:
+      XMPP_DOMAIN: server-a.local
+      XMPP_ADMIN_TOKEN: ${XMPP_ADMIN_TOKEN:-dev-admin-token}
+      XMPP_WEBHOOK_TOKEN: ${XMPP_WEBHOOK_TOKEN:-dev-webhook-token}
+      FASTAPI_WEBHOOK_URL: "http://backend_a:8000/api/internal/xmpp/event"
+    depends_on:
+      backend_a:
+        condition: service_healthy
+    networks:
+      internal_a: {}
+      federation_net:
+        # Publish this container as "server-a.local" on federation_net so
+        # prosody_b's s2s dialback lookup resolves cleanly.
+        aliases:
+          - server-a.local
+    healthcheck:
+      test: ["CMD-SHELL", "prosodyctl status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ---------------------------------------------------------------- Server B
+  db_b:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hackathon_b
+    volumes:
+      - postgres_b_data:/var/lib/postgresql/data
+    networks: [internal_b]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hackathon_b"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend_b:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8000"
+    environment:
+      POSTGRES_SERVER: db_b
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: hackathon_b
+      SECRET_KEY: ${SECRET_KEY:-changeme}
+      UPLOAD_DIR: /uploads
+      BACKEND_CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000"]'
+      XMPP_ENABLED: "1"
+      XMPP_HOST: prosody_b
+      XMPP_HTTP_PORT: "5280"
+      XMPP_DOMAIN: server-b.local
+      XMPP_ADMIN_TOKEN: ${XMPP_ADMIN_TOKEN:-dev-admin-token}
+      XMPP_WEBHOOK_TOKEN: ${XMPP_WEBHOOK_TOKEN:-dev-webhook-token}
+    volumes:
+      - uploads_b_data:/uploads
+    command:
+      [
+        "sh", "-c",
+        "uv run alembic upgrade head && exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --ws-ping-interval 20 --ws-ping-timeout 30"
+      ]
+    depends_on:
+      db_b:
+        condition: service_healthy
+    networks: [internal_b]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  prosody_b:
+    image: prosody/prosody:0.11.9  # see docker-compose.yml note — 0.12 isn't published
+    restart: unless-stopped
+    ports:
+      - "5322:5222"   # c2s  (shifted)
+      - "5369:5269"   # S2S  (shifted)
+      - "5381:5280"   # HTTP admin (shifted; exposed for load-test access)
+    volumes:
+      - ./jabber/prosody_b.cfg.lua:/etc/prosody/prosody.cfg.lua:ro
+      - ./jabber/modules:/usr/lib/prosody/modules-custom:ro
+      - prosody_b_data:/var/lib/prosody
+    environment:
+      XMPP_DOMAIN: server-b.local
+      XMPP_ADMIN_TOKEN: ${XMPP_ADMIN_TOKEN:-dev-admin-token}
+      XMPP_WEBHOOK_TOKEN: ${XMPP_WEBHOOK_TOKEN:-dev-webhook-token}
+      FASTAPI_WEBHOOK_URL: "http://backend_b:8000/api/internal/xmpp/event"
+    depends_on:
+      backend_b:
+        condition: service_healthy
+    networks:
+      internal_b: {}
+      federation_net:
+        aliases:
+          - server-b.local
+    healthcheck:
+      test: ["CMD-SHELL", "prosodyctl status || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  # East-west app traffic for each side. Backends never touch the federation
+  # bus directly — they talk to their local Prosody, Prosody does S2S.
+  internal_a:
+    driver: bridge
+  internal_b:
+    driver: bridge
+  # Shared S2S path — ONLY prosody_a and prosody_b attach.
+  federation_net:
+    driver: bridge
+
+volumes:
+  postgres_a_data:
+  postgres_b_data:
+  uploads_a_data:
+  uploads_b_data:
+  prosody_a_data:
+  prosody_b_data:
