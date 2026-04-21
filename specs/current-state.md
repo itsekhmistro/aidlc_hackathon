@@ -1,9 +1,10 @@
 
 ⏺ Gap audit — Initial-goal-definition.md vs shipped state
 
-  Bottom line: **16 of 16 core requirements shipped + NFR load-testing (TASK-16) verified**.
-  Release tagged **`1.0.0`** (annotated, on `greenbase`, 2026-04-21). Advanced Jabber
-  scope not attempted (explicitly optional in spec §6).
+  Bottom line: **16 of 16 core requirements + advanced Jabber/XMPP integration
+  (TASK-13) + NFR load-testing (TASK-16) shipped**. Releases tagged **`1.0.0`**
+  (2026-04-21, core scope) and **`1.1.0`** (2026-04-21, Jabber/XMPP) on
+  `greenbase`.
 
   Section-by-section coverage
 
@@ -98,10 +99,10 @@
     clean; production Vite build clean; both compose files validate.
 
   ---
-  Spec-complete status (v1.0.0, 2026-04-21)
+  Spec-complete status (v1.1.0, 2026-04-21)
 
-  All §2–§5 requirements shipped **and** §3 NFRs independently verified via TASK-16.
-  §6 (Jabber) remains out of scope per original carve-out.
+  All §2–§6 requirements shipped. §3 NFRs independently verified via TASK-16.
+  §6 (Jabber) delivered in Wave 7 (TASK-13) after the `1.0.0` cut.
 
   Release trail:
 
@@ -139,6 +140,38 @@
       this instead of `invalidateQueries` on `message.new`. Listeners in a
       1000-member room no longer trigger a per-message refetch; 4 new
       vitest cases cover prepend / dedupe / unopened-room / empty-pages.
+  - **Wave 7 (2026-04-21, post-tag) — TASK-13 Jabber/XMPP integration**
+    (commits `8662caf` + `6b0f6fe`). Design-first (`specs/13-jabber-design.md`),
+    as-built record (`specs/JabberIntegrationResults.md`). Architect
+    post-implementation review cleared the work for `1.1.0` — five polish
+    items (constant-time token compare, webhook throttle, disabled-bridge
+    HTTP contract, composite index, `require_admin` file location) noted for
+    v2 as 🟡/🟢, none release-blocking.
+    - Single-server Prosody sidecar behind `profiles: ["jabber"]` so
+      `docker compose up` is byte-identical to v1.0.0.
+    - Two-server federation topology (`docker-compose.federation.yml`:
+      six services, three networks, DNS aliases on `federation_net`).
+    - FastAPI→Prosody bridge (`backend/app/core/xmpp.py`): provision /
+      change / disable hooked into register, password-change,
+      password-reset, account-delete. Fire-and-forget; bridge failures
+      never block the user-facing endpoint.
+    - Prosody→FastAPI webhook (`POST /api/internal/xmpp/event`) with
+      shared-secret auth; persists S2S traffic to `federation_log` and
+      mutates the in-memory session registry.
+    - Admin dashboards `/admin/jabber` + `/admin/jabber/federation` gated
+      on `User.is_admin` (Alembic `b2c3d4e5f6a7`); polled every 10 s.
+    - Bootstrap CLI: `uv run python -m app.scripts.make_admin <username>`.
+    - slixmpp load-test harness `scripts/federation_load_test.py`.
+    - Custom Lua modules: `mod_admin_api.lua` (user provisioning surface
+      — `prosody/prosody:0.11.9` doesn't ship `mod_http_api`) and
+      `mod_fastapi_webhook.lua` (pushes session + federation events).
+    - +23 backend pytest cases (bridge, admin routes, webhook edges,
+      auth wiring, `make_admin` CLI), +7 vitest cases (dashboard,
+      federation, nav gating).
+    - Verified end-to-end per the 5-step plan in
+      `specs/JabberIntegrationResults.md §5` incl. Chrome-DevTools-driven
+      UI smoke; live two-server S2S handshake the only piece not
+      exercised this pass.
 
   ---
   Demo-script confidence (5-step happy path)
@@ -152,19 +185,23 @@
   Smoke coverage: `e2e/smoke.spec.ts` walks `/chat`, `/rooms`, `/sessions`, `/profile` — no uncaught console errors, exactly one "Current session" pill.
 
   ---
-  Final verification (2026-04-21, v1.0.0 + Wave 6)
+  Final verification (2026-04-21, v1.1.0 — Wave 6 + Wave 7)
 
-  - Backend: 223 pytest passing (1 pre-existing skip) — up from 211 after the
-    TASK-16 QA pass added 12 direct WS-helper tests
-  - Frontend: 149 vitest passing (was 139; Wave 6 added 2 image-preview
-    and 4 `mergeNewMessage` cases) · 0 TypeScript errors · clean Vite build
-  - E2E: 12 Playwright specs passing (was 11; Wave 6 added `reply.spec.ts`)
+  - Backend: **264** pytest passing (1 pre-existing skip, 1 PG-dependent
+    deselect) — was 223 at `1.0.0`; +18 during Wave 6/early-TASK-16
+    follow-ups, +23 during Wave 7 (TASK-13 bridge/admin/webhook/wiring/CLI)
+  - Frontend: **156** vitest passing — was 149; Wave 7 added 7 (dashboard +
+    federation + nav gating) · 0 TypeScript errors · clean Vite build
+  - E2E: 12 Playwright specs passing (unchanged since Wave 6)
   - Load: 5/5 NFR scenarios PASS (see `loadtests/RESULTS.md`)
   - Migration auto-applies on container boot (idempotent); uploads persist across `force-recreate`
+  - TASK-13 architect post-ship review: cleared for `1.1.0`; five polish
+    items (all 🟡/🟢) logged for v2
   - No open 🔴 blockers
 
-  Branch: `greenbase` · release tag: `1.0.0` (commit `2cfb619`). Wave 6 lives
-  on `greenbase` above the tag.
+  Branch: `greenbase` · release tags: `1.0.0` (commit `2cfb619`, core) and
+  `1.1.0` (commit `6b0f6fe`, Jabber/XMPP). Wave 6 lives between the two tags;
+  Wave 7 is the `1.1.0` tag.
 
   ---
   Deferred (post-demo)
@@ -173,4 +210,11 @@
   - ✅ ~~Reply round-trip Playwright coverage~~ — shipped Wave 6 (`e2e/reply.spec.ts`)
   - ✅ ~~`message.new` cache invalidation is per-room refetch~~ — shipped Wave 6 (`mergeNewMessage` in `hooks/useMessages.ts`; 4 vitest cases)
   - 🟡 `room.invitation_cancelled` WS event — currently admin cancel is local-refetch only; invitee's "pending invitation" banner stays live until they refresh or click-through. Cosmetic at demo scale
-  - ⬜ Jabber / XMPP federation (`specs/13-jabber.md`) — advanced scope, not targeted for this hackathon
+  - ✅ ~~Jabber / XMPP federation (`specs/13-jabber.md`)~~ — shipped Wave 7
+    (TASK-13) in `1.1.0`. Architect review logged five v2 polish items:
+    constant-time webhook-token compare, Prosody→FastAPI event
+    throttle/202, disabled-bridge 503/410 HTTP contract, composite
+    `federation_log` index, moving `require_admin` from `admin_jabber.py`
+    to `deps.py`. See `specs/JabberIntegrationResults.md` for full
+    verification results and `specs/RELEASE-NOTES.md` for the consolidated
+    changelog.
