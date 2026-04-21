@@ -6,6 +6,137 @@ shipped-state audit and to `specs/*.md` for per-task specs.
 
 ---
 
+## `1.1.1` — Invitee-side room-invitation UI
+**Date:** 2026-04-21
+**Commit:** tag `1.1.1` on `greenbase` (docs commit on top of
+`7919491`, `079fb12`, `85440d2`).
+**Scope:** Defect fix against spec §2.4.9 "Room invitations" — the
+backend stored invites and emitted a `room.invitation` WS event, but
+the invitee's client never surfaced one. For both public and private
+rooms, invited users had no visual indication that they had been
+invited. Only friend requests showed up as notifications. 1.1.1 closes
+that gap end-to-end and carries the 1.1.0 loadtest rerun (previously
+uncommitted) + a developer-ergonomics fix in `docker-compose.yml`.
+
+### Highlights
+
+- New "**Room invites (N)**" section in the left sidebar above the
+  friend-requests block. Each row shows `<inviter> invited you to
+  #<room-name>` with ✓ / ✕ actions. Renders only when there are pending
+  invites.
+- Invites arrive in real time via the existing `room.invitation` WS
+  event — no manual refresh required. Confirmed across three isolated
+  browser contexts in a Chrome-DevTools-driven smoke test.
+- Accept adds the invitee as a member and broadcasts `room.member_joined`
+  to the rest of the room. Decline removes the invite without joining
+  and without advertising the decision.
+- Admin-side "Manage room → Invitations" tab now renders the invitee's
+  username instead of a trimmed UUID.
+
+### Backend
+
+- `app/schemas/room.py` — `RoomInvitationPublic` gains `room_name`,
+  `invited_by_username`, `invited_username` so the invitee UI needs no
+  extra lookups.
+- `app/api/routes/rooms.py` — new `_build_invitation_public` helper
+  routes all three invitation endpoints (`GET /invitations/mine`,
+  `GET /{room_id}/invitations`, `POST /{room_id}/invitations`) through
+  the same enrichment. `room.invitation` WS payload reshaped from
+  `{type, room_id, room_name, invited_by}` to `{type, invitation}`
+  carrying the enriched DTO.
+- `app/api/routes/rooms.py` — **new** `POST /api/rooms/invitations/{id}/decline`.
+  Invitee-scoped (checks `invited_user_id == current_user.id`); 204 on
+  success, 404 if the invitation is unknown / already accepted /
+  addressed to a different user, 401 if unauthenticated. The admin-side
+  `DELETE /{room_id}/invitations/{id}` is unchanged.
+
+### Frontend
+
+- `lib/types.ts` — extended `RoomInvitationPublic`; updated
+  `WsRoomInvitation` to carry `invitation: RoomInvitationPublic`.
+- `hooks/useRooms.ts` — new `useMyRoomInvitations`,
+  `useAcceptRoomInvitation`, `useDeclineRoomInvitation` (Accept
+  invalidates `["rooms","invitations","mine"]` **and**
+  `["rooms","mine"]`; Decline invalidates only the invites list).
+- `components/RoomInviteRow.tsx` — new component.
+- `components/SidebarLeft.tsx` — renders "Room invites (N)" above
+  "Requests" when invites are present.
+- `App.tsx` — WS dispatcher invalidates
+  `["rooms","invitations","mine"]` on `room.invitation`.
+- `components/admin/InvitationsTab.tsx` — shows `invited_username`
+  instead of `inv.invited_user_id.slice(0, 8)`.
+
+### Tests
+
+- **Backend:** `264 → 271 passing` (+7). New: `test_my_invitations_include_room_name_and_inviter`,
+  `test_decline_invitation_as_invitee_returns_204`,
+  `test_decline_invitation_wrong_user_returns_404`,
+  `test_decline_invitation_unauthenticated_returns_401`,
+  `test_decline_invitation_after_accept_returns_404`,
+  `test_invite_emits_room_invitation_ws_event_with_enriched_payload`
+  (monkeypatches `presence_manager.send_to_user` to lock in the WS
+  contract), plus the pre-existing enriched-fields GET test.
+- **Frontend:** `156 → 170 passing` (+14) across
+  `__tests__/useRooms.test.ts` (three new hooks + cache-invalidation
+  assertions), `__tests__/RoomInviteRow.test.tsx` (new file), and
+  `__tests__/SidebarLeft.test.tsx` (invites-section rendering).
+- **Manual verification:** end-to-end with three isolated browser
+  contexts (Alice / Bob / Carol) — invite visible via WS without
+  reload; accept joins the room and clears the invite; decline clears
+  the invite without joining.
+
+### Loadtests (1.1.0 rerun carried in this tag)
+
+- Full NFR suite re-run on `976c06c` (1.1.0) with the Prosody sidecar
+  enabled. `loadtests/RESULTS.md` now carries the 1.0.0 → 1.1.0
+  comparison for all five scenarios.
+  - S1 / S2 / S3 / S5: parity or better than 1.0.0.
+  - S4 (`history_10k_read`): NFR 3.2 PASSes (p99 840 ms under the 1 s
+    bound); internal p95 ≤ 500 ms comfort target missed (640 ms) on
+    the shared laptop. Two back-to-back runs confirmed the result.
+    Analysis — the hot path has zero XMPP callsites (verified), so
+    the most defensible cause is host-side CPU contention from the
+    added sidecar container. A dedicated load-gen host would close
+    the gap.
+- `loadtests/locustfile.py` — tasks annotated with
+  `@tag("steady"|"fanout"|"presence"|"history")` so scenarios can be
+  driven individually via `locust --tags <name>`.
+
+### Dev ergonomics
+
+- `docker-compose.yml` — Postgres is now exposed on host port **5432**
+  (was 5433). Keeps `test_ws_helpers.py::test_session_scope_*` green
+  for host-side `uv run pytest`: those tests deliberately bypass the
+  SQLite fixture to exercise the real pooled engine, which resolves
+  `localhost:5432` from the default `.env`.
+
+### Known issues / deferred
+
+Carried over from 1.1.0, unchanged:
+
+- 🟡 `room.invitation_cancelled` WS event — admin-side cancel is still
+  local-refetch only; now that 1.1.1 added the invitee's live banner,
+  a cancelled invite stays visible for the invitee until they refresh
+  or click through. Cosmetic at demo scale.
+- TASK-13 polish items (5 × 🟡/🟢) still logged for v2. See
+  `specs/RELEASE-NOTES.md#1.1.0` above for the list.
+
+### Breaking changes
+
+None for REST consumers adding the new fields. The `room.invitation`
+**WebSocket** payload shape changed from
+`{type, room_id, room_name, invited_by}` to `{type, invitation}`. The
+1.0.0/1.1.0 frontend had no handler for this event (that was the bug),
+so no deployed client consumed the old shape.
+
+### Upgrade notes
+
+`docker compose up --build -d` picks up the new compose port mapping
+and the new backend + frontend bundle. No migration changes. No
+configuration changes required.
+
+---
+
 ## `1.1.0` — Advanced: Jabber / XMPP integration
 **Date:** 2026-04-21
 **Commit:** `6b0f6fe` on `greenbase` (annotated tag `1.1.0`)

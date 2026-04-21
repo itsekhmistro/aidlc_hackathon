@@ -3,7 +3,8 @@
 
   Bottom line: **16 of 16 core requirements + advanced Jabber/XMPP integration
   (TASK-13) + NFR load-testing (TASK-16) shipped**. Releases tagged **`1.0.0`**
-  (2026-04-21, core scope) and **`1.1.0`** (2026-04-21, Jabber/XMPP) on
+  (2026-04-21, core scope), **`1.1.0`** (2026-04-21, Jabber/XMPP), and
+  **`1.1.1`** (2026-04-21, invitee-side room-invitation UI fix) on
   `greenbase`.
 
   Section-by-section coverage
@@ -32,6 +33,12 @@
   - All owner/admin/member role rules, public catalog, private+invite, join/leave, room deletion cascade, ban list, invitations — ✅
   - Room name uniqueness 422 — ✅ (rooms.py:150-151)
   - Admin UI (spec §4.5) — ✅ shipped in TASK-10
+  - Invitee-side invitation UI — ✅ shipped in Wave 8 (`1.1.1`, 2026-04-21):
+    pre-1.1.1 the backend stored invites and emitted a `room.invitation` WS
+    event, but the invitee's client never surfaced one. `RoomInviteRow` + a
+    "Room invites (N)" section in `SidebarLeft`, a dedicated WS dispatch in
+    `App.tsx`, and a `POST /api/rooms/invitations/{id}/decline` endpoint close
+    the gap for both public and private rooms.
 
   §2.5 Messaging — ✅ complete
 
@@ -54,8 +61,12 @@
 
   - Full Locust + pytest load-test suite lives under `loadtests/`. Five scenarios
     (`steady_state_300`, `fanout_1000`, `presence_propagation`, `history_10k_read`,
-    `persistence_restart`) all **PASS** on `bf8acef`. See `loadtests/RESULTS.md` for
-    p50/p95/p99 numbers and the topology deviation note for S2.
+    `persistence_restart`) all **PASS** on `bf8acef` (1.0.0 baseline) AND on
+    `976c06c` (1.1.0 rerun with Prosody sidecar enabled). See `loadtests/RESULTS.md`
+    for p50/p95/p99 numbers, the 1.0.0 → 1.1.0 comparison, the topology deviation
+    note for S2, and the S4 tail-latency analysis (S4 still PASSes NFR 3.2 on the
+    p99 ≤ 1 s bound; internal p95 comfort target missed on the shared laptop —
+    attributed to host contention, not a code-path regression).
   - Persistence, file-size limits, session behavior — ✅
 
   §4 UI — ✅ complete
@@ -172,6 +183,40 @@
       `specs/JabberIntegrationResults.md §5` incl. Chrome-DevTools-driven
       UI smoke; live two-server S2S handshake the only piece not
       exercised this pass.
+  - **Wave 8 (2026-04-21, post-1.1.0) — invitee-side room-invitation UI**
+    (commits `85440d2` + `079fb12` + `7919491`). Fixes a gap surfaced
+    during post-release QA: invites for public and private rooms never
+    appeared on the invitee's side even though the backend stored them
+    and emitted a WS event.
+    - Backend: `RoomInvitationPublic` now carries `room_name`,
+      `invited_by_username`, `invited_username` so the invitee UI needs
+      no extra lookups. Three invitation endpoints route through a
+      shared `_build_invitation_public` helper. `room.invitation` WS
+      payload reshaped to `{ type, invitation }` with the enriched
+      object. New `POST /api/rooms/invitations/{id}/decline` lets the
+      invitee dismiss without joining (admin-side DELETE is unchanged).
+    - Frontend: new `useMyRoomInvitations` / `useAcceptRoomInvitation`
+      / `useDeclineRoomInvitation` hooks; `RoomInviteRow` component;
+      "Room invites (N)" section in `SidebarLeft` above the friend-
+      requests block; `App.tsx` WS dispatcher invalidates the invites
+      query on `room.invitation`; admin `InvitationsTab` renders the
+      invitee's username instead of a trimmed UUID.
+    - Tests: +4 backend cases (decline 204/401/404-wrong-user/404-
+      after-accept plus a monkeypatched assertion of the WS payload
+      shape), +14 frontend cases (three new hooks, `RoomInviteRow`,
+      `SidebarLeft` invites-section rendering).
+    - Verified end-to-end via three isolated browser contexts
+      (Chrome DevTools MCP): Alice invites Bob → invite appears in
+      Bob's sidebar via WS → Bob accepts → becomes a member → Carol
+      registers → Alice invites Carol → invite appears live for Carol
+      → decline removes it without joining.
+    - Loadtests side-car: re-ran the full NFR suite on `976c06c`
+      (1.1.0) with the Prosody sidecar up; added 1.0.0 → 1.1.0
+      comparison in `loadtests/RESULTS.md`. Added `@tag(...)` to
+      Locust tasks so scenarios can be driven individually.
+    - Dev ergonomics: `docker-compose.yml` maps Postgres to host
+      port **5432** (was 5433) so `session_scope`-based host-side
+      tests match the default `settings.DATABASE_URL`.
 
   ---
   Demo-script confidence (5-step happy path)
@@ -185,23 +230,27 @@
   Smoke coverage: `e2e/smoke.spec.ts` walks `/chat`, `/rooms`, `/sessions`, `/profile` — no uncaught console errors, exactly one "Current session" pill.
 
   ---
-  Final verification (2026-04-21, v1.1.0 — Wave 6 + Wave 7)
+  Final verification (2026-04-21, v1.1.1 — Wave 6 + Wave 7 + Wave 8)
 
-  - Backend: **264** pytest passing (1 pre-existing skip, 1 PG-dependent
-    deselect) — was 223 at `1.0.0`; +18 during Wave 6/early-TASK-16
-    follow-ups, +23 during Wave 7 (TASK-13 bridge/admin/webhook/wiring/CLI)
-  - Frontend: **156** vitest passing — was 149; Wave 7 added 7 (dashboard +
-    federation + nav gating) · 0 TypeScript errors · clean Vite build
+  - Backend: **271** pytest passing (1 pre-existing skip) — was 264 at
+    `1.1.0`; Wave 8 added +7 (decline endpoint auth/edge cases, WS
+    payload shape, enriched-fields coverage)
+  - Frontend: **170** vitest passing — was 156 at `1.1.0`; Wave 8 added
+    +14 (three new room-invitation hooks, `RoomInviteRow`, `SidebarLeft`
+    invites-section rendering) · 0 TypeScript errors · clean Vite build
   - E2E: 12 Playwright specs passing (unchanged since Wave 6)
-  - Load: 5/5 NFR scenarios PASS (see `loadtests/RESULTS.md`)
+  - Load: 5/5 NFR scenarios PASS on both `bf8acef` (1.0.0 baseline) and
+    `976c06c` (1.1.0 rerun with Prosody sidecar); see
+    `loadtests/RESULTS.md` for the comparison + S4 tail-latency analysis
   - Migration auto-applies on container boot (idempotent); uploads persist across `force-recreate`
   - TASK-13 architect post-ship review: cleared for `1.1.0`; five polish
     items (all 🟡/🟢) logged for v2
   - No open 🔴 blockers
 
-  Branch: `greenbase` · release tags: `1.0.0` (commit `2cfb619`, core) and
-  `1.1.0` (commit `6b0f6fe`, Jabber/XMPP). Wave 6 lives between the two tags;
-  Wave 7 is the `1.1.0` tag.
+  Branch: `greenbase` · release tags: `1.0.0` (commit `2cfb619`, core),
+  `1.1.0` (commit `6b0f6fe`, Jabber/XMPP), and `1.1.1` (invitee-side
+  room-invitation UI). Wave 6 lives between `1.0.0` and `1.1.0`;
+  Wave 7 is the `1.1.0` tag; Wave 8 is the `1.1.1` tag.
 
   ---
   Deferred (post-demo)
@@ -209,7 +258,8 @@
   - ✅ ~~Inline image preview for attachments~~ — shipped Wave 6 (`MessageBubble.tsx`; 2 vitest cases)
   - ✅ ~~Reply round-trip Playwright coverage~~ — shipped Wave 6 (`e2e/reply.spec.ts`)
   - ✅ ~~`message.new` cache invalidation is per-room refetch~~ — shipped Wave 6 (`mergeNewMessage` in `hooks/useMessages.ts`; 4 vitest cases)
-  - 🟡 `room.invitation_cancelled` WS event — currently admin cancel is local-refetch only; invitee's "pending invitation" banner stays live until they refresh or click-through. Cosmetic at demo scale
+  - ✅ ~~Invitee-side room-invitation UI~~ — shipped Wave 8 (`1.1.1`); sidebar "Room invites (N)" section, WS-driven updates, accept + decline endpoints (`RoomInviteRow` + `useMyRoomInvitations` / `useAcceptRoomInvitation` / `useDeclineRoomInvitation`)
+  - 🟡 `room.invitation_cancelled` WS event — admin-side cancel is still local-refetch only; now that Wave 8 added the invitee's live "Room invites" banner, a cancelled invite stays visible in that banner until the invitee refreshes or clicks through. Still cosmetic at demo scale; worth a small backend fan-out once invite volume grows
   - ✅ ~~Jabber / XMPP federation (`specs/13-jabber.md`)~~ — shipped Wave 7
     (TASK-13) in `1.1.0`. Architect review logged five v2 polish items:
     constant-time webhook-token compare, Prosody→FastAPI event
