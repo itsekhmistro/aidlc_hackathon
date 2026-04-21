@@ -287,6 +287,7 @@ class SteadyStateUser(WSClientMixin, HttpUser):
         latency_ms = (time.monotonic_ns() - t_send) / 1e6
         _fire_ws_latency(self.latency_name, latency_ms, len(raw))
 
+    @tag("steady")
     @task
     def post_one_message(self) -> None:
         if not self._rooms:
@@ -381,6 +382,7 @@ class FanoutListener(WSClientMixin, HttpUser):
         latency_ms = (time.monotonic_ns() - t_send) / 1e6
         _fire_ws_latency(self.latency_name, latency_ms, len(raw))
 
+    @tag("fanout")
     @task
     def idle(self) -> None:
         # Burn the wait_time; real work happens in the WS reader greenlet.
@@ -410,6 +412,7 @@ class FanoutPublisher(WSClientMixin, HttpUser):
         if not self.big_room:
             log.error("fanout: %s not found; publisher cannot run", BIG_ROOM_NAME)
 
+    @tag("fanout")
     @task
     def publish_one(self) -> None:
         if not self.big_room:
@@ -448,6 +451,7 @@ class PresenceToggler(WSClientMixin, HttpUser):
         super().on_start()
         self._next_status = "afk"
 
+    @tag("presence")
     @task
     def toggle(self) -> None:
         status = self._next_status
@@ -480,6 +484,7 @@ class PresenceObserver(WSClientMixin, HttpUser):
         latency_ms = (time.monotonic_ns() - t_send) / 1e6
         _fire_ws_latency(self.latency_name, latency_ms, len(raw))
 
+    @tag("presence")
     @task
     def idle(self) -> None:
         return None
@@ -505,6 +510,7 @@ class HistoryReader(HttpUser):
         if not self.history_room:
             log.error("history: %s room not found", HISTORY_ROOM_NAME)
 
+    @tag("history")
     @task
     def walk_pages(self) -> None:
         if not self.history_room:
